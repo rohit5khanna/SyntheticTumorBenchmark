@@ -1,0 +1,62 @@
+dataset:
+  name: synthetic_tumor_benchmark_v1
+  seed: 42
+  output_root: ./data/synthetic_tumor_benchmark_v1
+  volume_shape: [96, 96, 64]
+  modalities: [t1, t1ce, t2, flair]
+  save_concentration: true
+  overwrite: false
+  patient_id_prefix: syn
+
+schedule:
+  n_sessions_min: 4
+  n_sessions_max: 7
+  days_interval_min: 20
+  days_interval_max: 60
+  treatment_patient_prob: 0.55
+  treatment_start_session_min: 1
+
+split:
+  train_frac: 0.70
+  val_frac: 0.15
+  test_frac: 0.15
+  seed: 42
+
+labeling:
+  mask_threshold: 0.35
+
+simulation:
+  steps_per_day: 2
+  dt: 0.10
+  rho_range: [0.025, 0.075]
+  dw_range: [0.05, 0.20]
+  treatment_effect_range: [0.05, 0.20]
+  init_foci_min: 1
+  init_foci_max: 3
+  init_sigma_vox_range: [1.8, 4.5]
+  init_amp_range: [0.7, 1.2]
+
+tiers:
+  A:
+    enabled: true
+    n_patients: 60
+    description: Simple procedural geometric growth
+  B:
+    enabled: true
+    n_patients: 60
+    description: Isotropic reaction-diffusion growth
+  C:
+    enabled: true
+    n_patients: 60
+    description: Anisotropic + heterogeneous reaction-diffusion growth
+
+image_synthesis:
+  noise_std: 0.025
+  bias_amp: 0.12
+  bias_smooth_steps: 8
+  core_threshold: 0.70
+  edema_threshold: 0.20
+  t1_core_boost: 0.20
+  t1ce_core_boost: 0.55
+  t2_edema_boost: 0.45
+  flair_edema_boost: 0.60
