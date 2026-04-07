@@ -2,6 +2,11 @@
 
 Standard synthetic longitudinal brain-tumor benchmark generator for fast, repeatable model testing.
 
+Benchmark docs:
+
+- `docs/DATASET_CARD.md`
+- `docs/EVAL_PROTOCOL.md`
+
 ## What This Creates
 
 Each synthetic patient has multiple sessions with:
@@ -79,3 +84,53 @@ You can tune:
 ## Colab Note
 
 For large runs, set `--output_root` to Google Drive (or a mounted scratch location) so generation does not fill local runtime disk.
+
+## Baselines
+
+Implemented MVP baselines:
+
+- `LOCF` (last observed mask as forecast)
+- `UNet-mask` (forecast from mask + time/treatment channels)
+- `UNet-image+mask` (forecast from image + mask + time/treatment channels)
+
+Run LOCF:
+
+```bash
+python scripts/run_locf_baseline.py \
+  --dataset_root /path/to/synthetic_tumor_benchmark_v1 \
+  --split test \
+  --fit_sessions 3 \
+  --horizons 1,2 \
+  --output_dir outputs/baselines
+```
+
+Run UNet baseline (`mask` or `image_mask`):
+
+```bash
+python scripts/run_unet_baseline.py \
+  --dataset_root /path/to/synthetic_tumor_benchmark_v1 \
+  --train_split train \
+  --eval_split test \
+  --fit_sessions 3 \
+  --horizons 1,2 \
+  --input_mode image_mask \
+  --epochs 12 \
+  --batch_size 2 \
+  --output_dir outputs/baselines
+```
+
+Run all baselines:
+
+```bash
+python scripts/run_all_baselines.py \
+  --dataset_root /path/to/synthetic_tumor_benchmark_v1 \
+  --fit_sessions 3 \
+  --horizons 1,2 \
+  --epochs 12 \
+  --batch_size 2 \
+  --output_dir outputs/baselines
+```
+
+Note:
+
+- UNet baselines require PyTorch in your environment (Colab already has it).
