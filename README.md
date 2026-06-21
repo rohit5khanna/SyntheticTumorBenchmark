@@ -39,6 +39,12 @@ pip install -r requirements.txt
 python scripts/generate_dataset.py --config configs/benchmark_v1.yaml
 ```
 
+For a faster sprint or first Colab run, use:
+
+```bash
+python scripts/generate_dataset.py --config configs/benchmark_sprint.yaml
+```
+
 3. Override output path (recommended for Drive or scratch):
 
 ```bash
@@ -81,9 +87,20 @@ You can tune:
 - simulation parameters (`rho`, `Dw`, treatment effect)
 - label threshold and image synthesis noise/bias
 
+For sprint runs and Colab-first validation, use `configs/benchmark_sprint.yaml`.
+It reduces the patient count, shrinks the volume size, and disables saved concentration fields to lower storage and runtime cost.
+
 ## Colab Note
 
 For large runs, set `--output_root` to Google Drive (or a mounted scratch location) so generation does not fill local runtime disk.
+
+Recommended Colab sequence:
+
+1. Clone the repo from GitHub.
+2. Mount Google Drive.
+3. Generate the fixed sprint dataset to Drive.
+4. Run `LOCF` first.
+5. Run `run_all_baselines.py` and save outputs to a frozen directory such as `baselines_v0p1_sprint`.
 
 ## Baselines
 
@@ -129,6 +146,18 @@ python scripts/run_all_baselines.py \
   --epochs 12 \
   --batch_size 2 \
   --output_dir outputs/baselines
+```
+
+Recommended sprint baseline run:
+
+```bash
+python scripts/run_all_baselines.py \
+  --dataset_root /path/to/synthetic_tumor_benchmark_sprint_v1 \
+  --fit_sessions 3 \
+  --horizons 1,2 \
+  --epochs 4 \
+  --batch_size 2 \
+  --output_dir outputs/baselines_v0p1_sprint
 ```
 
 Note:
