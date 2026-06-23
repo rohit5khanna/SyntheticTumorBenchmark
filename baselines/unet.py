@@ -84,7 +84,7 @@ class _TorchForecastDataset:
         return torch.from_numpy(x), torch.from_numpy(y), idx
 
 
-def _build_torch_model(in_channels: int, base_channels: int):
+def _build_torch_model(in_channels: int, base_channels: int, model_variant: str = "unet"):
     import torch
     import torch.nn as nn
 
@@ -127,7 +127,77 @@ def _build_torch_model(in_channels: int, base_channels: int):
             d1 = self.d1(torch.cat([u1, e1], dim=1))
             return self.head(d1)
 
-    return UNet3D(in_channels, base_channels)
+    class ResBlock(nn.Module):
+        def __init__(self, c_in: int, c_out: int):
+            super().__init__()
+            self.conv1 = nn.Conv3d(c_in, c_out, kernel_size=3, padding=1)
+            self.norm1 = nn.InstanceNorm3d(c_out)
+            self.act1 = nn.LeakyReLU(0.1, inplace=True)
+            self.conv2 = nn.Conv3d(c_out, c_out, kernel_size=3, padding=1)
+            self.norm2 = nn.InstanceNorm3d(c_out)
+            self.skip = nn.Identity() if c_in == c_out else nn.Conv3d(c_in, c_out, kernel_size=1)
+            self.act2 = nn.LeakyReLU(0.1, inplace=True)
+
+        def forward(self, x):
+            identity = self.skip(x)
+            out = self.act1(self.norm1(self.conv1(x)))
+            out = self.norm2(self.conv2(out))
+            out = out + identity
+            return self.act2(out)
+
+    class ResUNet3D(nn.Module):
+        def __init__(self, cin: int, base: int):
+            super().__init__()
+            self.e1 = ResBlock(cin, base)
+            self.p1 = nn.MaxPool3d(2)
+            self.e2 = ResBlock(base, base * 2)
+            self.p2 = nn.MaxPool3d(2)
+            self.b = ResBlock(base * 2, base * 4)
+            self.u2 = nn.ConvTranspose3d(base * 4, base * 2, kernel_size=2, stride=2)
+            self.d2 = ResBlock(base * 4, base * 2)
+            self.u1 = nn.ConvTranspose3d(base * 2, base, kernel_size=2, stride=2)
+            self.d1 = ResBlock(base * 2, base)
+            self.head = nn.Conv3d(base, 1, kernel_size=1)
+
+        def forward(self, x):
+            e1 = self.e1(x)
+            e2 = self.e2(self.p1(e1))
+            b = self.b(self.p2(e2))
+            u2 = self.u2(b)
+            d2 = self.d2(torch.cat([u2, e2], dim=1))
+            u1 = self.u1(d2)
+            d1 = self.d1(torch.cat([u1, e1], dim=1))
+            return self.head(d1)
+
+    class PlainEncoderDecoder3D(nn.Module):
+        def __init__(self, cin: int, base: int):
+            super().__init__()
+            self.enc1 = ConvBlock(cin, base)
+            self.p1 = nn.MaxPool3d(2)
+            self.enc2 = ConvBlock(base, base * 2)
+            self.p2 = nn.MaxPool3d(2)
+            self.b = ConvBlock(base * 2, base * 4)
+            self.u2 = nn.ConvTranspose3d(base * 4, base * 2, kernel_size=2, stride=2)
+            self.dec2 = ConvBlock(base * 2, base * 2)
+            self.u1 = nn.ConvTranspose3d(base * 2, base, kernel_size=2, stride=2)
+            self.dec1 = ConvBlock(base, base)
+            self.head = nn.Conv3d(base, 1, kernel_size=1)
+
+        def forward(self, x):
+            x = self.enc1(x)
+            x = self.enc2(self.p1(x))
+            x = self.b(self.p2(x))
+            x = self.dec2(self.u2(x))
+            x = self.dec1(self.u1(x))
+            return self.head(x)
+
+    if model_variant == "unet":
+        return UNet3D(in_channels, base_channels)
+    if model_variant == "resunet":
+        return ResUNet3D(in_channels, base_channels)
+    if model_variant == "plain_cnn":
+        return PlainEncoderDecoder3D(in_channels, base_channels)
+    raise ValueError(f"Unknown model_variant='{model_variant}'.")
 
 
 def _dice_from_logits(logits, target, eps: float = 1e-6):
@@ -158,6 +228,7 @@ def run_unet_baseline(
     horizons: Iterable[int] | str,
     input_mode: str,
     output_dir: str | Path,
+    model_variant: str = "unet",
     epochs: int = 12,
     batch_size: int = 2,
     learning_rate: float = 2e-4,
@@ -177,6 +248,8 @@ def run_unet_baseline(
 
     if input_mode not in {"mask", "image_mask"}:
         raise ValueError("input_mode must be one of: mask, image_mask.")
+    if model_variant not in {"unet", "resunet", "plain_cnn"}:
+        raise ValueError("model_variant must be one of: unet, resunet, plain_cnn.")
 
     _set_seed(seed)
     out_dir = Path(output_dir)
@@ -190,7 +263,11 @@ def run_unet_baseline(
 
     sample_x, _, _ = train_ds[0]
     in_channels = int(sample_x.shape[0])
-    model = _build_torch_model(in_channels=in_channels, base_channels=base_channels)
+    model = _build_torch_model(
+        in_channels=in_channels,
+        base_channels=base_channels,
+        model_variant=model_variant,
+    )
 
     if device == "auto":
         dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -217,7 +294,7 @@ def run_unet_baseline(
     optim = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     best_eval_dice = -1.0
-    best_ckpt = out_dir / f"model_best_{input_mode}.pt"
+    best_ckpt = out_dir / f"model_best_{model_variant}_{input_mode}.pt"
     history: List[Dict] = []
 
     for ep in range(1, epochs + 1):
@@ -320,12 +397,13 @@ def run_unet_baseline(
                 dices.append(float(d))
 
     summary = {
-        "baseline": f"unet_{input_mode}",
+        "baseline": f"{model_variant}_{input_mode}",
         "dataset_root": str(Path(dataset_root).resolve()),
         "train_split": train_split,
         "eval_split": eval_split,
         "fit_sessions": int(fit_sessions),
         "input_mode": input_mode,
+        "model_variant": model_variant,
         "n_train_samples": len(train_samples),
         "n_eval_samples": len(eval_samples),
         "epochs": int(epochs),
@@ -338,15 +416,17 @@ def run_unet_baseline(
         "checkpoint": str(best_ckpt),
     }
 
-    with (out_dir / f"unet_{input_mode}_history.json").open("w", encoding="utf-8") as f:
+    prefix = f"{model_variant}_{input_mode}"
+
+    with (out_dir / f"{prefix}_history.json").open("w", encoding="utf-8") as f:
         json.dump(history, f, indent=2)
-    with (out_dir / f"unet_{input_mode}_per_sample.json").open("w", encoding="utf-8") as f:
+    with (out_dir / f"{prefix}_per_sample.json").open("w", encoding="utf-8") as f:
         json.dump(rows, f, indent=2)
-    with (out_dir / f"unet_{input_mode}_summary.json").open("w", encoding="utf-8") as f:
+    with (out_dir / f"{prefix}_summary.json").open("w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
-    with (out_dir / f"unet_{input_mode}_train_samples.json").open("w", encoding="utf-8") as f:
+    with (out_dir / f"{prefix}_train_samples.json").open("w", encoding="utf-8") as f:
         json.dump([asdict(s) for s in train_samples], f, indent=2)
-    with (out_dir / f"unet_{input_mode}_eval_samples.json").open("w", encoding="utf-8") as f:
+    with (out_dir / f"{prefix}_eval_samples.json").open("w", encoding="utf-8") as f:
         json.dump([asdict(s) for s in eval_samples], f, indent=2)
 
     return summary

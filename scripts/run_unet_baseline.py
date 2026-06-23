@@ -14,13 +14,19 @@ from baselines.unet import run_unet_baseline
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run UNet baseline on SyntheticTumorBenchmark.")
+    parser = argparse.ArgumentParser(description="Run direct CNN baseline on SyntheticTumorBenchmark.")
     parser.add_argument("--dataset_root", type=str, required=True)
     parser.add_argument("--train_split", type=str, default="train")
     parser.add_argument("--eval_split", type=str, default="test")
     parser.add_argument("--fit_sessions", type=int, default=3)
     parser.add_argument("--horizons", type=str, default="1,2")
     parser.add_argument("--input_mode", type=str, choices=["mask", "image_mask"], default="mask")
+    parser.add_argument(
+        "--model_variant",
+        type=str,
+        choices=["unet", "resunet", "plain_cnn"],
+        default="unet",
+    )
     parser.add_argument("--epochs", type=int, default=12)
     parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--learning_rate", type=float, default=2e-4)
@@ -39,6 +45,7 @@ def main() -> None:
         horizons=args.horizons,
         input_mode=args.input_mode,
         output_dir=args.output_dir,
+        model_variant=args.model_variant,
         epochs=args.epochs,
         batch_size=args.batch_size,
         learning_rate=args.learning_rate,

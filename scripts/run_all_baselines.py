@@ -15,7 +15,7 @@ from baselines.unet import run_unet_baseline
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run LOCF + UNet baselines.")
+    parser = argparse.ArgumentParser(description="Run LOCF + direct CNN baselines.")
     parser.add_argument("--dataset_root", type=str, required=True)
     parser.add_argument("--fit_sessions", type=int, default=3)
     parser.add_argument("--horizons", type=str, default="1,2")
@@ -43,8 +43,15 @@ def main() -> None:
         output_dir=out_dir,
     )
 
-    for mode in ("mask", "image_mask"):
-        key = f"unet_{mode}"
+    direct_runs = [
+        ("unet", "mask"),
+        ("unet", "image_mask"),
+        ("resunet", "image_mask"),
+        ("plain_cnn", "image_mask"),
+    ]
+
+    for model_variant, mode in direct_runs:
+        key = f"{model_variant}_{mode}"
         try:
             summary[key] = run_unet_baseline(
                 dataset_root=args.dataset_root,
@@ -54,6 +61,7 @@ def main() -> None:
                 horizons=args.horizons,
                 input_mode=mode,
                 output_dir=out_dir,
+                model_variant=model_variant,
                 epochs=args.epochs,
                 batch_size=args.batch_size,
                 learning_rate=args.learning_rate,

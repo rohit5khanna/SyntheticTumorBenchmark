@@ -786,6 +786,42 @@ Instead, the current project increasingly supports the following view:
 
 This is part of the core motivation for the benchmark and for the proposed residual-history modeling direction.
 
+### Discussion Note: Probabilistic Fields vs Deterministic Short-Term Forecasting
+
+Another conceptual direction emerged while interpreting why `LOCF` is so strong for immediate forecasting.
+
+The current forecasting setup evaluates deterministic future mask prediction under overlap metrics such as Dice. However, for very short-term tumor evolution, the true change may be:
+
+- spatially small,
+- uncertain at the boundary,
+- better described as a likely region or direction of growth rather than a single sharply defined binary outcome.
+
+This suggests a potentially richer framing:
+
+- instead of only predicting a future binary mask,
+- one could predict a **probability field**, **uncertainty map**, or even a **growth-oriented spatial field** indicating where change is most likely to occur.
+
+This idea is not disconnected from existing literature. Related work already uses:
+
+- uncertainty-aware future tumor predictions,
+- signed-distance-function or neural-field representations of future tumor shape,
+- deformation or temporal field modules for modeling future evolution.
+
+What appears less standard, and potentially valuable for this project, is to connect that style of representation specifically to the **short-term persistence-dominated regime**:
+
+- where `LOCF` is hard to beat on binary overlap,
+- but deterministic mask prediction may underrepresent the uncertainty or directional ambiguity of immediate growth.
+
+This means a useful longer-term question for the benchmark is not only:
+
+- can a model beat `LOCF` in Dice?
+
+but also:
+
+- can a model produce a better calibrated spatial estimate of where short-term growth is likely to occur?
+
+For the current DMS sprint, this remains a conceptual extension rather than the main implementation target. The immediate priority is still the residual-history baseline. However, this probabilistic-field viewpoint may become an important future direction for both benchmark design and model outputs.
+
 ### Results Note: Current Insight Summary
 
 At the present stage of the project, the strongest insights are:
@@ -1406,3 +1442,334 @@ The benchmark is now best framed as a short-term longitudinal forecasting testbe
 - `h=2` and `h=3` increasingly reward learned models,
 - image-conditioned models provide the strongest learned baseline,
 - regime complexity still determines where persistence remains difficult to beat.
+
+### Discussion Note: Probability Fields and Growth-Direction Framing
+
+Another useful conceptual refinement emerged while interpreting the immediate short-term regime.
+
+If `LOCF` is hard to beat at the next-step forecast, one likely reason is that the true change is often very small relative to:
+
+- the full brain volume,
+- the current tumor extent,
+- and the spatial scale emphasized by overlap metrics such as Dice.
+
+This suggests that immediate forecasting may not always be best understood as only:
+
+- "predict the one correct next binary mask"
+
+but also as:
+
+- "estimate where change is most likely to occur,"
+- "estimate how certain that change is,"
+- and possibly "estimate the most likely local direction of boundary evolution."
+
+In that sense, a future model could produce outputs such as:
+
+- a voxelwise probability field for future occupancy,
+- a boundary uncertainty map,
+- a residual change likelihood map,
+- or a local growth-direction / displacement-style field near the tumor boundary.
+
+This framing is appealing because it matches the practical difficulty of the task:
+
+- most of the tumor stays the same,
+- only a relatively small boundary region may change,
+- and the clinically relevant question may be less about exact binary overlap and more about where plausible progression is concentrated.
+
+This does **not** replace the current benchmark direction. For the DMS sprint, the main target remains strong deterministic short-term forecasting baselines, especially residual-history models. But this idea is worth keeping in the project narrative because it offers a principled explanation for why persistence is so dominant and why a pure Dice-based deterministic forecast may understate model value in the immediate regime.
+
+### Design Decision: Scope of This Idea
+
+For now, treat the probability-field / growth-direction idea as:
+
+1. a conceptual interpretation layer for the benchmark,
+2. a future modeling direction,
+3. and a possible future evaluation extension beyond hard-mask Dice.
+
+Do not expand scope immediately into a new probabilistic modeling project until the current residual short-term experiments are fully characterized.
+
+### Design Decision: SAILOR as Focused Real-Data Validation
+
+An important scope clarification was made once it was confirmed that a processed `SAILOR` dataset is already available.
+
+This changes the longer-term paper package in a useful way:
+
+- the synthetic benchmark remains the main controlled experimental testbed,
+- while `SAILOR` can later serve as a focused real-data validation layer.
+
+The intended role of `SAILOR` is **not** to become a second full benchmark track during the current evidence-collection phase. Instead, its best use is to test whether the main short-term forecasting pattern observed on synthetic data also appears on real longitudinal cases.
+
+The specific validation goal would be modest and targeted:
+
+1. run `LOCF` on the real short-term setup,
+2. run the strongest learned baseline,
+3. if ready, run the residual-history baseline,
+4. check whether the same qualitative pattern appears:
+   - immediate `h=1` forecasting favors persistence,
+   - slightly longer short-term horizons increasingly favor learned models.
+
+This is strategically valuable because it would let the project claim:
+
+- controlled evidence from synthetic data,
+- plus limited realism/credibility support from real data.
+
+### Design Decision: Scope Protection for SAILOR
+
+For the current DMS sprint, `SAILOR` should be treated as:
+
+1. a later validation layer,
+2. a minimal extension after the synthetic story is clean,
+3. not a parallel project that disrupts the current benchmark and residual experiment schedule.
+
+This keeps the paper focused while preserving a strong path to improved external credibility.
+
+---
+
+## 2026-06-23
+
+### Experiment ID
+
+`EXP-007-residual-overnight-ablation`
+
+### Objective
+
+Run a focused overnight residual-model ablation on the medium dataset to answer three questions:
+
+- does residual forecasting remain stronger than the earlier learned baselines,
+- does recent history length `k=3` actually help over `k=1`,
+- how sensitive is the residual model to the persistence prior and random seed.
+
+### Setup
+
+- Dataset:
+  `/content/drive/MyDrive/synthetic_tumor_benchmark/fixed_dataset_medium_v1`
+- Protocol:
+  - `fit_sessions = 3`
+  - `horizons = 1,2,3`
+  - `input_mode = image_mask`
+  - `epochs = 12`
+  - `batch_size = 2`
+- Sweep dimensions:
+  - history length: `k in {1, 3}`
+  - prior strength: `{2.0, 4.0, 6.0}`
+  - seeds:
+    - targeted ablations at `seed=42`
+    - stability check for `k=3, prior=4.0` with `seeds = {21, 42, 123, 999}`
+
+### Key Results
+
+#### Overall ranking
+
+- `R8_medium_h123_k1_p4_s42`
+  - `mean_eval_dice = 0.7986`
+- `R10_medium_h123_k3_p4_s123`
+  - `mean_eval_dice = 0.7835`
+- `R6_medium_h123_k3_p4_s42`
+  - `mean_eval_dice = 0.7642`
+- `R7_medium_h123_k3_p6_s42`
+  - `mean_eval_dice = 0.7616`
+- `R9_medium_h123_k3_p4_s21`
+  - `mean_eval_dice = 0.7486`
+- `R11_medium_h123_k3_p4_s999`
+  - `mean_eval_dice = 0.7413`
+- `R5_medium_h123_k3_p2_s42`
+  - `mean_eval_dice = 0.7199`
+
+#### Comparison to earlier medium baselines
+
+Earlier `h=1,2,3` medium benchmark reference:
+
+- `LOCF`: `0.6507`
+- `UNet-mask`: `0.6475`
+- `UNet-image+mask`: `0.7024`
+
+All residual variants in this overnight sweep exceeded the earlier `UNet-image+mask` baseline overall, and all strongly exceeded `LOCF` overall.
+
+#### History-length result
+
+At matched prior strength `4.0` and seed `42`:
+
+- `k=1`: `0.7986`
+- `k=3`: `0.7642`
+
+This means the current gain does **not** appear to come from adding longer observed history. In the present setup, the stronger effect is the residual formulation itself, and `k=1` actually performed better than `k=3`.
+
+#### Prior-strength result
+
+At `k=3`, `seed=42`:
+
+- `prior=2.0`: `0.7199`
+- `prior=4.0`: `0.7642`
+- `prior=6.0`: `0.7616`
+
+This suggests:
+
+- a weak persistence prior underperforms,
+- moderate-to-strong persistence priors are clearly better,
+- `prior=4.0` and `prior=6.0` are similar overall,
+- `prior=4.0` looks like the best default among the tested values.
+
+#### Horizon breakdown highlights
+
+Best `k=1, prior=4.0, seed=42` run:
+
+- `h=1`: `0.8150`
+- `h=2`: `0.8276`
+- `h=3`: `0.7343`
+
+Key implication:
+
+- the residual formulation is not only helping at longer short-term horizons,
+- it is now also beating the earlier persistence baseline even at immediate `h=1` on this medium synthetic benchmark.
+
+#### Tier breakdown highlights
+
+Best `k=1, prior=4.0, seed=42` run:
+
+- `Tier A`: `0.7587`
+- `Tier B`: `0.8204`
+- `Tier C`: `0.8926`
+
+Compared with the earlier medium `UNet-image+mask` baseline:
+
+- `Tier A`: improved
+- `Tier B`: improved substantially
+- `Tier C`: improved dramatically
+
+Compared with earlier `LOCF`:
+
+- `Tier C` is now nearly matched while remaining strong on `Tier A` and `Tier B`
+
+This is important because earlier learned models struggled badly to compete in the most persistence-dominated or harder-regime settings.
+
+### Interpretation
+
+This overnight sweep materially strengthens the project.
+
+1. The residual idea is real.
+   - This is not a tiny fluctuation over the previous learned baseline.
+   - The gain over the earlier `UNet-image+mask` medium benchmark is substantial.
+
+2. The core mechanism seems to be residual forecasting over a strong persistence prior.
+   - The current evidence does **not** support a strong claim that longer explicit history is the main driver.
+   - Right now, `k=1` is actually the strongest result.
+
+3. The short-term forecasting story becomes sharper.
+   - Earlier, the benchmark suggested that `h=1` was persistence-dominated.
+   - Now, a persistence-aware residual learner appears capable of surpassing naive copy-forward behavior even in that immediate regime on the medium synthetic benchmark.
+
+4. This is a more interesting paper story than simple architecture scaling.
+   - The key lesson is not "deeper model beats baseline."
+   - The key lesson is that modeling **residual change on top of persistence** is a better inductive bias for immediate and short-term longitudinal tumor forecasting.
+
+### Results Note: Practical Conclusion
+
+The strongest learned direction so far is now:
+
+- persistence-aware residual short-term forecasting,
+- with a moderate-to-strong persistence prior,
+- and no clear need yet for longer history beyond the latest session.
+
+### Design Decision: Suggested Next Steps
+
+1. Treat the residual formulation as the current lead model family.
+2. Reframe the paper contribution more around **persistence-aware residual forecasting** than around multi-session stacking.
+3. Use `k=1, prior=4.0` as the provisional best model.
+4. Keep `k=3` results in the paper as an important negative/clarifying ablation rather than hiding them.
+5. Next analyses should compare:
+   - best residual model,
+   - `LOCF`,
+   - earlier `UNet-image+mask`,
+   under identical horizon and tier tables.
+
+### Hypothesis Update: What Now Seems Most True
+
+The most credible current claim is:
+
+- immediate short-term tumor forecasting is persistence-dominated,
+- naive `LOCF` is therefore hard to beat,
+- but a model that learns **residual correction over a strong persistence prior** can outperform both naive persistence and standard direct-mask forecasting on the synthetic medium benchmark.
+
+### Discussion Note: Why Additional Baselines Still Matter
+
+After the residual improvement became clear, an important concern was raised:
+
+- if the comparison set remains too narrow,
+- a reviewer could argue that the current conclusion only demonstrates the weakness of one specific direct `U-Net` family rather than a broader immediate-forecasting phenomenon.
+
+This is a fair concern.
+
+The current evidence strongly supports:
+
+- `LOCF` is a serious baseline,
+- direct `U-Net` forecasting can struggle in immediate next-step prediction,
+- persistence-aware residual correction is much stronger.
+
+However, this is not yet identical to showing that the persistence problem is broader than one architecture family. To strengthen that claim, the paper should ideally include a small number of **additional baseline families** with different modeling assumptions.
+
+### Design Decision: Baseline Diversity Without Scope Explosion
+
+The project should not expand into a large model zoo.
+
+The right compromise is:
+
+- keep the baseline set small,
+- include a few qualitatively different model families,
+- avoid large hyperparameter tuning efforts,
+- and preserve a single common evaluation protocol.
+
+The reason for adding a few more models is **not** to maximize leaderboard coverage. The reason is to establish that the immediate short-term forecasting difficulty is likely a more general modeling issue, rather than merely a `U-Net` issue.
+
+### Design Decision: Comparator Philosophy
+
+Additional learned baselines should follow these rules:
+
+1. use established models or already-available repos where possible,
+2. represent meaningfully different inductive biases,
+3. require little or no custom hyperparameter tuning,
+4. run under the same immediate forecasting setup,
+5. be included only if they improve the scientific argument.
+
+This keeps the paper honest:
+
+- if multiple reasonable direct predictors struggle against `LOCF`,
+- then the paper can more credibly argue that immediate next-step forecasting is a persistence-dominated regime,
+- rather than overfitting the conclusion to one baseline architecture.
+
+### Design Decision: Provisional Baseline Suite for the Paper Premise
+
+The current preferred comparison set is:
+
+1. `LOCF`
+2. one mechanistic `PDE` / diffusion-reaction baseline
+3. `UNet-mask`
+4. `UNet-image+mask`
+5. one or two additional established CNN-style baselines if they are easy to run fairly
+6. best persistence-aware residual model
+7. optional stronger comparator later:
+   - `TaDiff`
+   - or a flow-based model
+
+### Discussion Note: Why PDE Baselines Are Useful Here
+
+A PDE or reaction-diffusion solver is especially useful in this project because it serves a different role from the CNN baselines:
+
+- it is mechanistic rather than purely learned,
+- it provides a strong reference from prior tumor-growth literature,
+- and it can test whether the persistence problem is also visible outside neural forecasting models.
+
+There is also prior anecdotal evidence in this project context that some solver-based approaches have had difficulty beating `LOCF` on short-horizon forecasting. Re-running at least one such baseline under the current protocol would strengthen the premise of the paper considerably.
+
+### Design Decision: What Not To Do
+
+Avoid:
+
+- adding many small CNN variants with cosmetic differences,
+- spending significant time rescuing underperforming baselines by tuning,
+- turning baseline expansion into a second project,
+- or weakening the paper narrative by including models that do not answer a clear question.
+
+The purpose of the extra baselines is to support the central claim:
+
+- immediate next-step tumor forecasting is hard because of persistence,
+- and a persistence-aware residual model is a more appropriate response than standard direct forecasting.
