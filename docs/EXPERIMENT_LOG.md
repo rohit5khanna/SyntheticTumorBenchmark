@@ -1773,3 +1773,331 @@ The purpose of the extra baselines is to support the central claim:
 
 - immediate next-step tumor forecasting is hard because of persistence,
 - and a persistence-aware residual model is a more appropriate response than standard direct forecasting.
+
+---
+
+## 2026-06-23
+
+### Experiment ID
+
+`EXP-008-broader-direct-cnn-baselines`
+
+### Objective
+
+Test whether the earlier immediate-forecasting story was only a `U-Net` artifact or whether it persists across a slightly broader family of direct CNN forecasters.
+
+The key question was:
+
+- is `LOCF` mainly beating one particular direct architecture,
+- or is immediate next-step forecasting broadly difficult for standard direct learned predictors?
+
+### Setup
+
+Two new direct CNN variants were added under the same benchmark pipeline:
+
+- `resunet_image_mask`
+- `plain_cnn_image_mask`
+
+These were evaluated under the same data loader, loss, optimizer, and split logic as the existing direct baselines.
+
+Two evaluation settings were run on the medium synthetic benchmark:
+
+1. `h=1` only:
+   - output root:
+     `/content/drive/MyDrive/synthetic_tumor_benchmark/outputs/premise_medium_h1_suite`
+2. `h=1,2,3` combined:
+   - output root:
+     `/content/drive/MyDrive/synthetic_tumor_benchmark/outputs/context_medium_h123_suite`
+
+Shared settings:
+
+- dataset:
+  `/content/drive/MyDrive/synthetic_tumor_benchmark/fixed_dataset_medium_v1`
+- `fit_sessions = 3`
+- `epochs = 12`
+- `batch_size = 2`
+- `seed = 42`
+
+### Key Results
+
+#### Immediate next-step only (`h=1`)
+
+Overall means:
+
+- `resunet_image_mask`: `0.7932`
+- `LOCF`: `0.7621`
+- `unet_image_mask`: `0.7294`
+- `unet_mask`: `0.5247`
+- `plain_cnn_image_mask`: `0.5179`
+
+Tier breakdown:
+
+- `Tier A`
+  - `unet_image_mask`: `0.7788`
+  - `resunet_image_mask`: `0.7652`
+  - `plain_cnn_image_mask`: `0.7393`
+  - `unet_mask`: `0.7306`
+  - `LOCF`: `0.7091`
+
+- `Tier B`
+  - `resunet_image_mask`: `0.7703`
+  - `LOCF`: `0.7401`
+  - `unet_image_mask`: `0.6378`
+  - `unet_mask`: `0.3584`
+  - `plain_cnn_image_mask`: `0.3377`
+
+- `Tier C`
+  - `LOCF`: `0.9546`
+  - `resunet_image_mask`: `0.9210`
+  - `unet_image_mask`: `0.8117`
+  - `unet_mask`: `0.3637`
+  - `plain_cnn_image_mask`: `0.3481`
+
+#### Context setting (`h=1,2,3`)
+
+Overall means:
+
+- `resunet_image_mask`: `0.7892`
+- `unet_image_mask`: `0.7024`
+- `LOCF`: `0.6507`
+- `unet_mask`: `0.6475`
+- `plain_cnn_image_mask`: `0.6247`
+
+### Interpretation
+
+This experiment changes the paper framing in an important way.
+
+1. The earlier result was **not** only a vanilla `U-Net` failure story.
+   - A stronger direct CNN family (`ResUNet`) can beat `LOCF` even in the immediate `h=1` regime on the medium synthetic benchmark.
+
+2. At the same time, persistence remains a meaningful challenge.
+   - `LOCF` still beats multiple reasonable direct baselines:
+     - `unet_mask`
+     - `plain_cnn_image_mask`
+   - It also remains strongest on `Tier C` for immediate forecasting.
+
+3. The right claim is therefore more nuanced than "direct CNNs fail."
+   - Immediate forecasting is not impossible for direct learned models.
+   - But performance is highly architecture-sensitive, and persistence remains especially hard to beat in the most copy-forward-dominated regime.
+
+4. The broader paper story is still intact, but it must be stated carefully.
+   - `LOCF` is a strong baseline that many reasonable direct methods do not beat.
+   - Some stronger architectures can surpass it.
+   - Persistence-aware or residual-style inductive biases still appear highly effective, but they are no longer the only evidence that immediate forecasting can beat naive persistence.
+
+### Results Note: Practical Conclusion
+
+The new direct-CNN comparison supports the following more honest framing:
+
+- immediate next-step forecasting is a persistence-heavy regime,
+- `LOCF` is a serious and nontrivial baseline,
+- weaker direct forecasters often fail to beat it,
+- stronger direct CNNs can beat it,
+- and the hardest persistence-dominated tier (`Tier C`) remains difficult.
+
+### Design Decision: Paper Framing Adjustment
+
+Do **not** overstate the premise as:
+
+- "standard direct CNNs cannot beat `LOCF`."
+
+Instead, frame it as:
+
+- "`LOCF` is a strong baseline in immediate short-term forecasting, especially in harder persistence-dominated regimes, and model performance is highly sensitive to inductive bias and architecture."
+
+This is more accurate and more defensible.
+
+### Discussion Note: Tier Ladder Interpretation
+
+An important clarification emerged about how the synthetic tiers should be interpreted.
+
+The three benchmark tiers are not just arbitrary subsets. They define a **graduated difficulty ladder**:
+
+- `Tier A`: simple procedural geometric growth
+- `Tier B`: isotropic reaction-diffusion growth
+- `Tier C`: anisotropic + heterogeneous reaction-diffusion growth
+
+This means the benchmark is best understood as moving from:
+
+- simpler, more idealized cases,
+- to more mechanistic synthetic growth,
+- to the most heterogeneous and real-like synthetic regime.
+
+Under that interpretation:
+
+- `Tier A` should not be discarded as "too easy"
+- `Tier B` should not be treated as merely intermediate noise
+- `Tier C` should be treated as the hardest and most important synthetic frontier
+
+The value of the tier structure is precisely that it lets the project show **progressive improvement across increasing realism and difficulty**.
+
+### Hypothesis Update: What Tier Progress Means
+
+Under the new interpretation, progress should be read as a sequence:
+
+1. a method first becomes reliable on `Tier A`,
+2. then extends that improvement to `Tier B`,
+3. and finally begins to close the gap on `Tier C`.
+
+This is a better way to describe method development than relying only on a single overall average.
+
+It also means that failure to fully beat `LOCF` on `Tier C` is not automatically a negative result. It may simply indicate that the method has not yet crossed the final difficulty frontier.
+
+### Design Decision: Role of Tier C
+
+`Tier C` should now be treated as:
+
+1. the hardest synthetic regime,
+2. the most relevant synthetic reference for later `SAILOR` comparison,
+3. and the main frontier for future modeling improvements.
+
+This does **not** mean `Tier A` and `Tier B` are unimportant.
+
+Instead:
+
+- `Tier A` shows whether a model can succeed in an idealized regime,
+- `Tier B` shows whether that success extends to mechanistic isotropic dynamics,
+- `Tier C` tests whether the approach survives anisotropy and heterogeneity.
+
+### Design Decision: How Future Experiments Should Be Chosen
+
+From this point onward, experiment choices should be explained as part of a tier-ladder strategy:
+
+- use `Tier A` and `Tier B` to demonstrate early and intermediate gains,
+- use `Tier C` to judge whether those gains actually transfer to the most realistic synthetic regime,
+- and later use `SAILOR` as the real-data endpoint of that progression.
+
+This creates a coherent experimental narrative:
+
+- simple synthetic cases,
+- then more complex synthetic cases,
+- then real data.
+
+### Discussion Note: Current Medium Dataset May Be Too Small for Final Claims
+
+Another important planning conclusion emerged after the tier-ladder interpretation became clearer.
+
+The current medium benchmark has been very useful for:
+
+- model screening,
+- identifying the persistence problem,
+- testing direct vs residual formulations,
+- and understanding how results vary across tiers and horizons.
+
+However, it may still be somewhat small for the final paper-level confirmation stage.
+
+The concern is not that the benchmark is invalid. The concern is that:
+
+- test sample counts are still limited,
+- `Tier C` remains especially sample-poor,
+- and some conclusions may look more fragile than necessary.
+
+This suggests that the current medium benchmark is better viewed as a **development-scale benchmark** rather than the final confirmation benchmark.
+
+### Design Decision: Increase Dataset Size Moderately
+
+The current direction is to increase overall dataset size moderately, while preserving the same tier structure.
+
+The goal is **not** to create a huge synthetic dataset with thousands of cases.
+
+Instead, the goal is to better mimic a moderate-sized medical forecasting benchmark by increasing the number of synthetic patients per tier while keeping:
+
+- the same generation logic,
+- the same tier ladder (`A -> B -> C`),
+- and the same evaluation protocol.
+
+The intended benefit is:
+
+- more stable overall means,
+- more credible tier-wise conclusions,
+- less fragile `Tier C` analysis,
+- and a stronger final benchmark confirmation stage.
+
+### Design Decision: Do Not Rerun Everything
+
+It is not necessary to repeat every prior experiment on the larger dataset.
+
+The current medium benchmark should be retained as:
+
+- development evidence,
+- hypothesis-forming evidence,
+- and model-screening evidence.
+
+The larger benchmark should be used as:
+
+- confirmation evidence for the core paper claims.
+
+This means only the most important model comparisons need to be rerun on the larger dataset.
+
+### Design Decision: Development vs Confirmation Study Structure
+
+The paper can explicitly present the work as a two-stage study:
+
+1. **development stage**
+   - moderate synthetic benchmark used for exploration, baseline screening, and hypothesis generation
+2. **confirmation stage**
+   - larger synthetic benchmark used to verify the main findings more robustly
+
+This is a strength rather than a weakness because it shows:
+
+- efficient use of computation,
+- focused narrowing of the experimental space,
+- and deliberate confirmation of only the most important findings.
+
+### Design Decision: What To Reconfirm on the Larger Dataset
+
+On the larger synthetic benchmark, priority should be given to rerunning only the headline comparisons:
+
+1. `LOCF`
+2. strongest standard direct baseline(s)
+3. strongest residual model
+4. optional mechanistic `PDE` baseline if available in time
+
+The purpose of the larger benchmark is not to replay all exploratory experiments, but to confirm the main scientific story under a more stable sample size.
+
+### Design Decision: Confirmation Benchmark Config
+
+The next benchmark scale should preserve the exact same generation logic as the current medium benchmark while increasing cohort size to a more stable moderate scale.
+
+The chosen confirmation configuration is:
+
+- config file:
+  `configs/benchmark_confirm.yaml`
+- patients per tier:
+  - `Tier A = 80`
+  - `Tier B = 80`
+  - `Tier C = 80`
+- total synthetic patients:
+  - `240`
+
+This keeps the benchmark comparable to the current medium dataset while materially improving:
+
+- test-set size,
+- tier-wise stability,
+- and especially the reliability of `Tier C` conclusions.
+
+### Design Decision: First Confirmation Runs
+
+The first runs on the confirmation benchmark should be limited to the highest-value headline comparisons:
+
+1. `LOCF`
+2. `UNet-image+mask`
+3. `ResUNet-image+mask`
+4. best residual model (`k=1`, `prior=4.0`)
+
+Optional later addition:
+
+5. one mechanistic `PDE` baseline
+
+### Design Decision: Run Order on the Confirmation Benchmark
+
+The preferred execution order is:
+
+1. generate the confirmation dataset,
+2. run the direct-CNN suite on `h=1`,
+3. run the direct-CNN suite on `h=1,2,3`,
+4. run the best residual model on the same settings,
+5. compute tier-wise and horizon-wise comparison tables,
+6. only then decide whether PDE or real-data validation should be inserted next.
+
+This order keeps the confirmation phase focused on the strongest current scientific questions.
