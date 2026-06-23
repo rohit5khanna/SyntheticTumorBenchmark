@@ -2101,3 +2101,214 @@ The preferred execution order is:
 6. only then decide whether PDE or real-data validation should be inserted next.
 
 This order keeps the confirmation phase focused on the strongest current scientific questions.
+
+---
+
+## 2026-06-23
+
+### Experiment ID
+
+`EXP-009-confirmation-benchmark-core-reruns`
+
+### Objective
+
+Re-run the core headline comparisons on a larger confirmation-stage synthetic benchmark in order to determine:
+
+- whether the main ranking remains stable at a larger cohort size,
+- whether the immediate `h=1` story survives scaling,
+- whether the tier-ladder interpretation becomes more reliable,
+- and whether `Tier C` remains the decisive frontier.
+
+### Setup
+
+Confirmation benchmark:
+
+- config:
+  `configs/benchmark_confirm.yaml`
+- patients per tier:
+  - `A = 80`
+  - `B = 80`
+  - `C = 80`
+- total patients:
+  - `240`
+
+Compared models:
+
+- `LOCF`
+- `unet_mask`
+- `unet_image_mask`
+- `resunet_image_mask`
+- `plain_cnn_image_mask`
+- `residual_unet_image_mask_k1`
+
+Two evaluation settings:
+
+1. immediate next-step only:
+   - `h=1`
+2. short-term context:
+   - `h=1,2,3`
+
+Shared training settings:
+
+- `fit_sessions = 3`
+- `epochs = 12`
+- `batch_size = 2`
+- `seed = 42`
+
+### Key Results
+
+#### Immediate next-step only (`h=1`)
+
+Overall means:
+
+- `resunet_image_mask`: `0.8167`
+- `LOCF`: `0.7395`
+- `residual_unet_image_mask_k1`: `0.7057`
+- `unet_image_mask`: `0.6005`
+- `plain_cnn_image_mask`: `0.5279`
+- `unet_mask`: `0.5197`
+
+Tier breakdown:
+
+- `Tier A`
+  - `residual_unet_image_mask_k1`: `0.7823`
+  - `resunet_image_mask`: `0.7734`
+  - `unet_image_mask`: `0.7727`
+  - `LOCF`: `0.7177`
+
+- `Tier B`
+  - `resunet_image_mask`: `0.8742`
+  - `LOCF`: `0.7145`
+  - `residual_unet_image_mask_k1`: `0.5776`
+  - `unet_image_mask`: `0.4240`
+
+- `Tier C`
+  - `resunet_image_mask`: `0.8360`
+  - `LOCF`: `0.7851`
+  - `residual_unet_image_mask_k1`: `0.6890`
+  - `unet_image_mask`: `0.4885`
+
+#### Combined short-term setting (`h=1,2,3`)
+
+Overall means:
+
+- `resunet_image_mask`: `0.7481`
+- `residual_unet_image_mask_k1`: `0.7120`
+- `unet_image_mask`: `0.6575`
+- `LOCF`: `0.6228`
+- `unet_mask`: `0.6150`
+- `plain_cnn_image_mask`: `0.4971`
+
+Horizon breakdown:
+
+- `h=1`
+  - `resunet_image_mask`: `0.8310`
+  - `residual_unet_image_mask_k1`: `0.7668`
+  - `LOCF`: `0.7395`
+
+- `h=2`
+  - `resunet_image_mask`: `0.7004`
+  - `residual_unet_image_mask_k1`: `0.6799`
+  - `unet_image_mask`: `0.6555`
+  - `LOCF`: `0.5822`
+
+- `h=3`
+  - `resunet_image_mask`: `0.6607`
+  - `residual_unet_image_mask_k1`: `0.6552`
+  - `unet_image_mask`: `0.6160`
+  - `LOCF`: `0.4657`
+
+Tier breakdown:
+
+- `Tier A`
+  - `residual_unet_image_mask_k1`: `0.7669`
+  - `resunet_image_mask`: `0.7451`
+  - `unet_image_mask`: `0.7435`
+  - `LOCF`: `0.5729`
+
+- `Tier B`
+  - `resunet_image_mask`: `0.6692`
+  - `residual_unet_image_mask_k1`: `0.5895`
+  - `LOCF`: `0.5834`
+
+- `Tier C`
+  - `resunet_image_mask`: `0.8096`
+  - `LOCF`: `0.7291`
+  - `residual_unet_image_mask_k1`: `0.7146`
+
+### Interpretation
+
+This confirmation benchmark is one of the most important results so far.
+
+1. The ranking is now much more stable.
+   - On the larger confirmation benchmark, `resunet_image_mask` is the strongest direct learned baseline both for immediate `h=1` and for the combined `h=1,2,3` setting.
+
+2. The previous residual result does not remain the lead model under confirmation-scale evidence.
+   - The residual `k=1, prior=4.0` model still clearly beats several standard baselines and remains competitive.
+   - However, it is now consistently below `resunet_image_mask`.
+
+3. The larger benchmark strengthens the claim that the phenomenon is broader than one weak direct baseline.
+   - Some direct CNNs still perform poorly.
+   - But a stronger direct CNN architecture can clearly beat `LOCF`, including on `Tier C`.
+
+4. `Tier C` is now much more informative than before.
+   - Sample counts are larger.
+   - The conclusion is no longer based on only a handful of `Tier C` examples.
+   - Importantly, `resunet_image_mask` now exceeds `LOCF` on `Tier C` both in the immediate `h=1` setting and in the combined `h=1,2,3` setting.
+
+5. The tier-ladder story is still valid, but the frontier has shifted.
+   - `Tier C` remains the hardest and most meaningful regime.
+   - The key result is no longer that `Tier C` resists all learned models.
+   - The stronger result is that only the better architectures meaningfully cross that frontier.
+
+### Results Note: Practical Conclusion
+
+The confirmation benchmark supports the following updated main message:
+
+- immediate and short-term tumor forecasting are persistence-heavy regimes,
+- `LOCF` is a serious baseline,
+- several standard direct predictors fail to beat it,
+- but a stronger architecture such as `ResUNet` can surpass it even on the hardest synthetic tier,
+- while simpler models continue to struggle substantially.
+
+### Design Decision: Updated Lead Baseline
+
+For the current paper state, the strongest learned benchmark model should now be treated as:
+
+1. `resunet_image_mask`
+
+The residual `k=1, prior=4.0` model should still be retained because:
+
+- it remains clearly useful,
+- it offers a conceptually different persistence-aware perspective,
+- and it provides an informative comparison against standard direct forecasting.
+
+But it should no longer be described as the strongest learned result on the confirmation benchmark.
+
+### Design Decision: Next Step After Confirmation
+
+The next highest-value experiments should now shift away from more synthetic architecture screening and toward:
+
+1. one mechanistic `PDE` baseline comparison,
+2. and then a minimal real-data validation on `SAILOR`.
+
+At this point, the synthetic benchmark evidence is strong enough that the main uncertainty is no longer whether the phenomenon exists, but how well it transfers beyond the synthetic setting.
+
+### Design Decision: Data Audit Becomes a First-Class Workstream
+
+At this stage, the project should no longer treat the synthetic dataset as a passive backdrop for model evaluation.
+
+The data itself has become central to the scientific contribution.
+
+This means the next phase must include a dedicated benchmark-audit workstream covering:
+
+1. synthetic dataset characterization,
+2. tier-ladder validation,
+3. synthetic-to-`SAILOR` comparison,
+4. and explicit realism limitations.
+
+This is necessary both for the DMS paper and for the longer-term goal of evolving the project into a stronger benchmark dataset.
+
+The detailed audit checklist and deliverables are captured in:
+
+- `docs/DATA_AUDIT_PLAN.md`
