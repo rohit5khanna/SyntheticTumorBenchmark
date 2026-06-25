@@ -105,39 +105,59 @@ def _rollout_procedural(
     states.append(cur.copy())
 
     steps_per_day = int(sim_cfg["steps_per_day"])
+    step_divisor = float(sim_cfg.get("procedural_step_divisor", 8.0))
+    seed_min, seed_max = [int(v) for v in sim_cfg.get("procedural_seed_count_range", [1, 4])]
+    rx_min, rx_max = [int(v) for v in sim_cfg.get("procedural_radius_x_range", [1, 3])]
+    ry_min, ry_max = [int(v) for v in sim_cfg.get("procedural_radius_y_range", [1, 3])]
+    rz_min, rz_max = [int(v) for v in sim_cfg.get("procedural_radius_z_range", [1, 3])]
+    shift_prob = float(sim_cfg.get("procedural_shift_prob", 0.30))
+    sx_min, sx_max = [int(v) for v in sim_cfg.get("procedural_shift_x_range", [-2, 2])]
+    sy_min, sy_max = [int(v) for v in sim_cfg.get("procedural_shift_y_range", [-2, 2])]
+    sz_min, sz_max = [int(v) for v in sim_cfg.get("procedural_shift_z_range", [-1, 1])]
+    offshoot_prob = float(sim_cfg.get("procedural_offshoot_prob", 0.18))
+    ox_min, ox_max = [int(v) for v in sim_cfg.get("procedural_offshoot_x_range", [-10, 10])]
+    oy_min, oy_max = [int(v) for v in sim_cfg.get("procedural_offshoot_y_range", [-10, 10])]
+    oz_min, oz_max = [int(v) for v in sim_cfg.get("procedural_offshoot_z_range", [-6, 6])]
+    orx_min, orx_max = [int(v) for v in sim_cfg.get("procedural_offshoot_radius_x_range", [1, 1])]
+    ory_min, ory_max = [int(v) for v in sim_cfg.get("procedural_offshoot_radius_y_range", [1, 1])]
+    orz_min, orz_max = [int(v) for v in sim_cfg.get("procedural_offshoot_radius_z_range", [1, 1])]
+
     for s in range(1, n_sessions):
         delta_days = float(days[s] - days[s - 1])
-        n_steps = max(1, int(round(delta_days * steps_per_day / 8.0)))
+        n_steps = max(1, int(round(delta_days * steps_per_day / step_divisor)))
         for _ in range(n_steps):
             grown = cur.copy()
             coords = np.argwhere(cur > 0.5)
             if len(coords) == 0:
                 coords = np.argwhere(brain > 0.5)
-            n_seeds = int(rng.integers(1, 5))
+            n_seeds = int(rng.integers(seed_min, seed_max + 1))
             picks = rng.integers(0, len(coords), size=n_seeds)
             for pi in picks:
                 cx, cy, cz = coords[int(pi)]
-                rx = int(rng.integers(1, 4))
-                ry = int(rng.integers(1, 4))
-                rz = int(rng.integers(1, 4))
+                rx = int(rng.integers(rx_min, rx_max + 1))
+                ry = int(rng.integers(ry_min, ry_max + 1))
+                rz = int(rng.integers(rz_min, rz_max + 1))
                 draw_ellipsoid(grown, (int(cx), int(cy), int(cz)), (rx, ry, rz), value=1.0)
 
-            if rng.random() < 0.30:
-                sx = int(rng.integers(-2, 3))
-                sy = int(rng.integers(-2, 3))
-                sz = int(rng.integers(-1, 2))
+            if rng.random() < shift_prob:
+                sx = int(rng.integers(sx_min, sx_max + 1))
+                sy = int(rng.integers(sy_min, sy_max + 1))
+                sz = int(rng.integers(sz_min, sz_max + 1))
                 shifted = np.roll(grown, shift=(sx, sy, sz), axis=(0, 1, 2))
                 grown = np.maximum(grown, shifted)
 
-            if rng.random() < 0.18:
+            if rng.random() < offshoot_prob:
                 ax, ay, az = sample_point_from_mask(rng, grown)
-                ox = int(rng.integers(-10, 11))
-                oy = int(rng.integers(-10, 11))
-                oz = int(rng.integers(-6, 7))
+                ox = int(rng.integers(ox_min, ox_max + 1))
+                oy = int(rng.integers(oy_min, oy_max + 1))
+                oz = int(rng.integers(oz_min, oz_max + 1))
                 cx = int(np.clip(ax + ox, 2, shape[0] - 3))
                 cy = int(np.clip(ay + oy, 2, shape[1] - 3))
                 cz = int(np.clip(az + oz, 2, shape[2] - 3))
-                draw_ellipsoid(grown, (cx, cy, cz), (1, 1, 1), value=1.0)
+                orx = int(rng.integers(orx_min, orx_max + 1))
+                ory = int(rng.integers(ory_min, ory_max + 1))
+                orz = int(rng.integers(orz_min, orz_max + 1))
+                draw_ellipsoid(grown, (cx, cy, cz), (orx, ory, orz), value=1.0)
 
             cur = (grown * brain > 0.5).astype(np.float32)
 

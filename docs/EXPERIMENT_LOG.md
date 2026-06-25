@@ -2575,3 +2575,213 @@ The redesign path is now:
 1. build `v2-lite` first,
 2. run the audit again,
 3. then decide whether to implement the full regime-aware `v2-core`.
+
+## 2026-06-24: v2-lite Audit And First Regime-Control Lessons
+
+### What was run
+
+A first `v2-lite` benchmark candidate was generated with:
+
+- more sessions,
+- longer follow-up,
+- slightly broader growth ranges,
+- and a modestly larger cohort.
+
+### Main audit outcome
+
+The temporal redesign worked meaningfully well.
+
+Overall:
+
+- `n_sessions_mean = 7.54`
+- `followup_days_mean = 310.47`
+- `mean_interval_days_mean = 47.56`
+
+Interpretation:
+
+- this is substantially closer to the processed `SAILOR` temporal profile than the earlier benchmark versions,
+- so the benchmark improved meaningfully on longitudinal depth.
+
+### Main problem exposed by the audit
+
+The growth ladder remained poorly calibrated.
+
+Test-split relative growth means:
+
+- `Tier A`: `0.867`
+- `Tier B`: `0.191`
+- `Tier C`: `0.043`
+
+Interpretation:
+
+- `Tier A` was still too aggressive,
+- `Tier B` remained relatively quiet,
+- and `Tier C`, which should be the main synthetic frontier, was still too weak on average.
+
+### Additional concern
+
+`Tier B` and `Tier C` still showed zero-volume sessions in their summaries.
+
+Interpretation:
+
+- some mechanistic trajectories are collapsing too strongly,
+- which is a realism and evaluation concern,
+- especially if treatment effects dominate too often.
+
+### Decision
+
+`v2-lite` is useful as an intermediate diagnostic benchmark, but not good enough to freeze as the main benchmark version.
+
+The main lesson was:
+
+- temporal structure improved,
+- but growth-regime design still needed direct control.
+
+## 2026-06-24: Tier-Specific Override Support Added
+
+### Why this was needed
+
+The `v2-lite` audit showed that global parameter changes were not enough.
+
+We needed to control `Tier A/B/C` separately for:
+
+- schedule,
+- simulation,
+- labeling,
+- and image synthesis.
+
+### Implementation change
+
+The generator was extended to support tier-specific overrides via:
+
+- `schedule_overrides`
+- `simulation_overrides`
+- `labeling_overrides`
+- `image_synthesis_overrides`
+
+These were threaded through the config loader and generation pipeline.
+
+### Impact
+
+This is a key benchmark-design milestone because it shifts the benchmark from:
+
+- one global simulator with three modes
+
+to:
+
+- one generator with explicit regime-level control.
+
+## 2026-06-24: v2_core_candidate Audit
+
+### Goal
+
+The first regime-aware `v2_core_candidate` was designed to:
+
+- calm `Tier A`,
+- strengthen `Tier C`,
+- and create a more interpretable tier ladder.
+
+### What improved
+
+Temporal structure remained strong:
+
+- `n_sessions_mean = 7.65`
+- `followup_days_mean = 313.32`
+- `mean_interval_days_mean = 47.30`
+
+`Tier C` improved meaningfully:
+
+- longer histories than `A/B`
+- larger tumors than `Tier B`
+- stronger growth than `Tier B`
+
+Interpretation:
+
+- `Tier C` no longer looked like the weakest or quietest regime,
+- which was an important improvement over `v2-lite`.
+
+### What failed
+
+`Tier A` became too aggressive.
+
+Test-split summaries:
+
+- `Tier A relative_growth_rate_mean = 2.96`
+- `Tier A delta_volume_vox_mean = 3262.81`
+
+Interpretation:
+
+- the attempt to calm `Tier A` through initialization changes alone did not work,
+- because the procedural growth rule itself remained too expansive.
+
+### Decision
+
+The override mechanism worked.
+The design direction was correct.
+But the benchmark still needed one more major fix:
+
+- explicit procedural-growth controls for `Tier A`
+
+## 2026-06-25: Mechanism-Aware Procedural Controls And Biophys1 Candidate
+
+### Motivation
+
+After the `v2_core_candidate` audit, the key insight was:
+
+- `Tier A` is exploding because of the procedural dynamics,
+- not simply because of initialization scale.
+
+At the same time, a broader design question was raised:
+
+- can we constrain benchmark growth more realistically using mechanism-aware reasoning rather than blind parameter fiddling?
+
+### Implementation change
+
+The procedural simulator was extended with explicit control knobs for:
+
+- procedural step frequency,
+- number of local expansion seeds,
+- local expansion radii,
+- shift probability and shift ranges,
+- offshoot probability and offshoot ranges,
+- offshoot radii.
+
+These controls allow `Tier A` to be tuned structurally rather than indirectly.
+
+### New candidate
+
+A new config was created:
+
+- `configs/benchmark_v2_core_candidate_biophys1.yaml`
+
+Design intent:
+
+- strongly calm `Tier A` procedural expansion,
+- modestly strengthen `Tier B`,
+- keep `Tier C` near the improved direction from the previous candidate,
+- and move toward literature-informed / mechanism-constrained parameter choices.
+
+### Important methodological note
+
+The current benchmark is still best described as:
+
+- literature-informed,
+- mechanism-constrained,
+- and audit-calibrated
+
+rather than:
+
+- fully biophysically calibrated.
+
+That distinction matters because the simulator still operates on an abstract voxel grid rather than a fully physical mm-scale model with patient-fitted parameters.
+
+### Current status
+
+Progress is actively being logged in this file.
+
+Other project-tracking documents now include:
+
+- `docs/BENCHMARK_V2_BLUEPRINT.md`
+- `docs/BENCHMARK_V2_SPEC.md`
+- `docs/DATA_AUDIT_PLAN.md`
+- `docs/References.md`
