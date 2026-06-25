@@ -2312,3 +2312,266 @@ This is necessary both for the DMS paper and for the longer-term goal of evolvin
 The detailed audit checklist and deliverables are captured in:
 
 - `docs/DATA_AUDIT_PLAN.md`
+
+---
+
+## 2026-06-23
+
+### Experiment ID
+
+`EXP-010-synthetic-vs-sailor-audit-v1`
+
+### Objective
+
+Run the first dataset-centered audit comparing the confirmation synthetic benchmark against processed `SAILOR` in order to assess:
+
+- whether the synthetic benchmark has plausible temporal structure,
+- whether the tier ladder corresponds to increasingly real-like properties,
+- and whether `Tier C` is actually the closest synthetic regime to real data.
+
+### Setup
+
+Synthetic dataset:
+
+- `synthetic_confirm_v1`
+- confirmation benchmark with `80` patients per tier
+
+Real dataset:
+
+- processed `SAILOR`
+
+Audit outputs were generated using:
+
+- `scripts/run_data_audit.py`
+
+Compared statistics:
+
+- sessions per patient
+- follow-up duration
+- treatment prevalence
+- mean inter-scan interval
+- tumor volume
+- elongation ratio
+- compactness proxy
+- bounding-box dimensions
+- delta-volume
+- relative growth rate
+
+### Key Results
+
+#### Temporal structure
+
+Synthetic tiers:
+
+- `n_sessions_mean`: about `5.25` to `5.81`
+- `followup_days_mean`: about `163` to `202`
+- `mean_interval_days_mean`: about `39` to `42`
+
+`SAILOR`:
+
+- `n_sessions_mean`: `9.15`
+- `followup_days_mean`: `495.58`
+- `mean_interval_days_mean`: `52.83`
+
+Interpretation:
+
+- the synthetic benchmark is currently much shorter than `SAILOR` in both session count and total follow-up,
+- and slightly shorter in inter-scan gap.
+
+#### Shape / geometric proxies
+
+Elongation ratio:
+
+- `Tier A`: about `1.63` to `1.68`
+- `Tier B`: about `1.38` to `1.52` on train/test, but unstable on small val split
+- `Tier C`: about `1.33` to `1.43`
+- `SAILOR`: `1.52`
+
+Compactness proxy:
+
+- `Tier A`: about `0.15` to `0.22`
+- `Tier B`: about `0.12` on test, lower on val
+- `Tier C`: about `0.09` to `0.18`
+- `SAILOR`: `0.1199`
+
+Interpretation:
+
+- on scale-free shape proxies, `Tier B` and `Tier C` appear directionally closer to `SAILOR` than `Tier A`,
+- while `Tier A` looks more inflated and idealized geometrically.
+
+#### Tumor size scale
+
+Session-level `volume_vox_mean`:
+
+- synthetic: roughly `800` to `7000` depending on tier/split
+- `SAILOR`: `69259`
+
+Interpretation:
+
+- absolute tumor size scale is far apart,
+- but this should be treated cautiously because the synthetic benchmark currently uses voxel counts on an abstract grid rather than a physically calibrated mm-scale volume definition.
+
+#### Growth dynamics
+
+Relative growth rate:
+
+- `Tier A`: about `1.13` to `1.28`
+- `Tier B`: about `-0.11` to `0.11`
+- `Tier C`: about `0.02` to `0.10`
+- `SAILOR`: `0.556`
+
+Interpretation:
+
+- `Tier A` currently grows too aggressively relative to `SAILOR`,
+- `Tier B` and `Tier C` currently grow too slowly on average relative to `SAILOR`,
+- so no current tier matches the real-data growth-rate regime well.
+
+### Interpretation
+
+This audit is extremely important because it shows both strengths and weaknesses of the current benchmark.
+
+1. The synthetic benchmark is **structured**, not arbitrary.
+   - The tiers differ in measurable ways.
+   - `Tier A` appears more idealized.
+   - `Tier B/C` appear more plausible on some shape proxies.
+
+2. `Tier C` is only **partially** the closest regime to real data.
+   - It is more credible than `Tier A` as a realistic synthetic frontier.
+   - But the benchmark still does not match `SAILOR` well on temporal depth or growth-rate behavior.
+
+3. The largest realism gap is not anisotropy alone.
+   - It is also the mismatch in:
+     - session count,
+     - total follow-up duration,
+     - and effective growth dynamics.
+
+4. This means the benchmark is already useful for controlled method comparison, but it is not yet a well-calibrated real-data surrogate.
+
+### Results Note: Practical Conclusion
+
+The first realism audit supports the following honest benchmark claim:
+
+- the synthetic benchmark provides a meaningful tiered forecasting testbed,
+- `Tier B/C` are more plausible than `Tier A` on some shape statistics,
+- but the benchmark currently under-matches `SAILOR` in longitudinal depth and does not yet reproduce real-data growth-rate behavior well.
+
+### Design Decision: Benchmark v2 Priorities
+
+The next benchmark-improvement priorities should be:
+
+1. increase synthetic session count and follow-up duration,
+2. better calibrate growth-rate behavior against `SAILOR`,
+3. preserve the tier ladder while making `Tier C` more convincingly real-like,
+4. and be cautious about any claim that current synthetic performance alone implies real-data performance.
+
+## 2026-06-23: Strategic Pivot From "More Runs" To "Better Benchmark Design"
+
+### Context
+
+After the first synthetic-to-real audit, we explicitly decided not to rush into a half-baked submission narrative.
+
+The main conclusion was:
+
+- more model runs alone will not solve the central weakness,
+- the benchmark itself now needs to be formalized more carefully,
+- and the project should be guided first by the data-mining and benchmark-design problem, not by deadline pressure.
+
+### Key discussion points
+
+1. The benchmark should not be narrowly tuned to `SAILOR`.
+   - `SAILOR` is important for validation and calibration,
+   - but the benchmark should remain a general synthetic testbed.
+
+2. The current three-tier ladder is useful, but still too coarse.
+   - `Tier A/B/C` help us narrate the progression from simpler to more heterogeneous growth,
+   - but a stronger benchmark needs explicit challenge axes underneath those tiers.
+
+3. Short-horizon forecasting remains the central task.
+   - especially immediate next-step forecasting under high persistence,
+   - where `LOCF` is a meaningful baseline rather than a trivial one.
+
+4. The benchmark should help uncover forecasting failure modes.
+   - not just report a leaderboard,
+   - but show when persistence dominates,
+   - when learned models help,
+   - and which data regimes cause that shift.
+
+5. We should save useful outputs as tables and figures when they clarify important experiment cycles.
+   - not every run needs a polished artifact,
+   - but the important transitions in project understanding should be documented.
+
+### Project-level decision
+
+We are moving toward a `Benchmark v2` framing built around:
+
+- temporal depth,
+- growth regime diversity,
+- spatial complexity,
+- tumor burden / size scale,
+- treatment effects,
+- and observation realism.
+
+This shifts the project from:
+
+- "Can one learned model beat `LOCF` on a synthetic dataset?"
+
+to:
+
+- "How should a synthetic longitudinal tumor benchmark be designed so that short-horizon forecasting claims are meaningful, auditable, and scientifically useful?"
+
+### New document
+
+To support this shift, a new blueprint document was created:
+
+- `docs/BENCHMARK_V2_BLUEPRINT.md`
+
+That document defines the rationale, challenge axes, regime structure, evaluation tasks, and next build plan for the next benchmark iteration.
+
+## 2026-06-23: Benchmark v2 Spec Drafted Against The Current Codebase
+
+### Why this was needed
+
+The blueprint established what a stronger benchmark should look like conceptually, but we also needed a practical answer to:
+
+- which controls already exist,
+- which improvements can be made by config alone,
+- and which ones require code changes.
+
+Without that bridge, the redesign would stay too abstract.
+
+### Outcome
+
+A concrete implementation-facing spec was created:
+
+- `docs/BENCHMARK_V2_SPEC.md`
+
+### Main conclusions from the spec
+
+1. The current generator already gives us a useful base.
+   - We have global controls for schedule, growth ranges, initialization, treatment probability, and image synthesis.
+
+2. A real v2 cannot be achieved with YAML changes alone.
+   - The current `A/B/C` distinction is still mostly driven by rollout mode.
+   - It does not yet expose regime-specific schedule, growth, or observation controls.
+
+3. The best next milestone is a `v2-lite`.
+   - Increase longitudinal depth.
+   - Increase follow-up.
+   - Modestly expand size.
+   - Adjust global growth settings.
+   - Re-audit before doing another major model sweep.
+
+4. The minimum deeper code upgrades are now clear.
+   - regime-specific overrides,
+   - growth subtype sampling,
+   - size-targeted initialization,
+   - richer treatment profiles,
+   - and an observation corruption layer.
+
+### Decision
+
+The redesign path is now:
+
+1. build `v2-lite` first,
+2. run the audit again,
+3. then decide whether to implement the full regime-aware `v2-core`.

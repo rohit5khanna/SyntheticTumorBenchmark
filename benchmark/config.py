@@ -51,16 +51,28 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             "enabled": True,
             "n_patients": 60,
             "description": "Simple procedural geometric growth",
+            "schedule_overrides": {},
+            "simulation_overrides": {},
+            "labeling_overrides": {},
+            "image_synthesis_overrides": {},
         },
         "B": {
             "enabled": True,
             "n_patients": 60,
             "description": "Isotropic reaction-diffusion growth",
+            "schedule_overrides": {},
+            "simulation_overrides": {},
+            "labeling_overrides": {},
+            "image_synthesis_overrides": {},
         },
         "C": {
             "enabled": True,
             "n_patients": 60,
             "description": "Anisotropic + heterogeneous reaction-diffusion growth",
+            "schedule_overrides": {},
+            "simulation_overrides": {},
+            "labeling_overrides": {},
+            "image_synthesis_overrides": {},
         },
     },
     "image_synthesis": {
@@ -112,6 +124,15 @@ def _validate_cfg(cfg: Dict[str, Any]) -> None:
     for k in enabled_tiers:
         if int(tiers[k].get("n_patients", 0)) <= 0:
             raise ValueError(f"tiers.{k}.n_patients must be > 0 when enabled.")
+        for override_key in (
+            "schedule_overrides",
+            "simulation_overrides",
+            "labeling_overrides",
+            "image_synthesis_overrides",
+        ):
+            override_val = tiers[k].get(override_key, {})
+            if not isinstance(override_val, dict):
+                raise ValueError(f"tiers.{k}.{override_key} must be a dictionary when provided.")
 
 
 def load_config(config_path: str | Path) -> Dict[str, Any]:
@@ -121,4 +142,3 @@ def load_config(config_path: str | Path) -> Dict[str, Any]:
     cfg = _deep_update(DEFAULT_CONFIG, raw)
     _validate_cfg(cfg)
     return cfg
-

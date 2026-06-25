@@ -7,6 +7,13 @@ import numpy as np
 from .utils import draw_ellipsoid, normalize01, sample_point_from_mask, smooth3d
 
 
+def _merge_cfg(base: Dict, overrides: Dict | None) -> Dict:
+    merged = dict(base)
+    if overrides:
+        merged.update(overrides)
+    return merged
+
+
 def _make_brain_and_tissues(
     rng: np.random.Generator,
     shape: Tuple[int, int, int],
@@ -252,9 +259,10 @@ def simulate_patient(
     cfg: Dict,
 ) -> Dict:
     shape = tuple(int(v) for v in cfg["dataset"]["volume_shape"])
-    schedule_cfg = cfg["schedule"]
-    sim_cfg = cfg["simulation"]
-    label_cfg = cfg["labeling"]
+    tier_cfg = cfg["tiers"].get(tier, {})
+    schedule_cfg = _merge_cfg(cfg["schedule"], tier_cfg.get("schedule_overrides"))
+    sim_cfg = _merge_cfg(cfg["simulation"], tier_cfg.get("simulation_overrides"))
+    label_cfg = _merge_cfg(cfg["labeling"], tier_cfg.get("labeling_overrides"))
 
     brain, tissues = _make_brain_and_tissues(rng, shape)
     days, treatment = _sample_schedule(schedule_cfg, rng)
@@ -292,6 +300,7 @@ def simulate_patient(
     return {
         "patient_id": patient_id,
         "tier": tier,
+        "tier_description": tier_cfg.get("description"),
         "brain_mask": brain.astype(np.float32),
         "tissues": tissues,
         "concentration": concentration.astype(np.float32),
@@ -300,4 +309,3 @@ def simulate_patient(
         "treatment": treatment.astype(np.float32),
         "meta": sim_meta,
     }
-

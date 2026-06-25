@@ -13,6 +13,13 @@ from .images import make_session_modalities
 from .simulator import simulate_patient
 
 
+def _merge_cfg(base: Dict, overrides: Dict | None) -> Dict:
+    merged = dict(base)
+    if overrides:
+        merged.update(overrides)
+    return merged
+
+
 def _prepare_dirs(output_root: Path, overwrite: bool) -> Dict[str, Path]:
     if output_root.exists() and overwrite:
         shutil.rmtree(output_root)
@@ -93,6 +100,8 @@ def generate_benchmark_dataset(cfg: Dict) -> Dict:
                 tier=tier_name,
                 cfg=cfg,
             )
+            tier_cfg = tiers.get(tier_name, {})
+            tier_image_cfg = _merge_cfg(image_cfg, tier_cfg.get("image_synthesis_overrides"))
 
             # Build session images.
             concentration = sample["concentration"]  # [S,H,W,D]
@@ -103,7 +112,7 @@ def generate_benchmark_dataset(cfg: Dict) -> Dict:
                     concentration=concentration[s],
                     brain_mask=sample["brain_mask"],
                     tissue_maps=sample["tissues"],
-                    image_cfg=image_cfg,
+                    image_cfg=tier_image_cfg,
                     modalities=modalities,
                     rng=rng,
                 )
@@ -122,6 +131,7 @@ def generate_benchmark_dataset(cfg: Dict) -> Dict:
             meta = {
                 "patient_id": patient_id,
                 "tier": tier_name,
+                "tier_description": sample.get("tier_description"),
                 "n_sessions": int(n_sessions),
                 "days_total": float(sample["days"][-1]),
                 "treatment_on_any": bool(np.any(sample["treatment"] > 0)),
@@ -140,6 +150,7 @@ def generate_benchmark_dataset(cfg: Dict) -> Dict:
                     "n_sessions": int(n_sessions),
                     "days_total": float(sample["days"][-1]),
                     "treatment_on_any": int(np.any(sample["treatment"] > 0)),
+                    "tier_description": sample.get("tier_description"),
                     "rho": sample["meta"].get("rho"),
                     "Dw": sample["meta"].get("Dw"),
                     "treatment_effect": sample["meta"].get("treatment_effect"),
@@ -189,4 +200,3 @@ def generate_benchmark_dataset(cfg: Dict) -> Dict:
         "manifest_csv": str(dirs["manifests"] / "manifest.csv"),
         "splits_json": str(dirs["splits"] / "splits.json"),
     }
-
