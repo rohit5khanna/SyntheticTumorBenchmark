@@ -24,7 +24,7 @@ def main() -> None:
     parser.add_argument(
         "--model_variant",
         type=str,
-        choices=["unet", "resunet", "plain_cnn"],
+        choices=["unet", "resunet", "plain_cnn", "unetr"],
         default="unet",
     )
     parser.add_argument("--epochs", type=int, default=12)

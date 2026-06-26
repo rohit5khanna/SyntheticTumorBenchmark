@@ -266,6 +266,11 @@ In that case, prefer:
 - stronger analysis of existing model families,
 - then revisit transformer integration as a second-step engineering task.
 
+Current repo status:
+
+- optional `UNETR` support is the first practical transformer-family target
+- it should be treated as a compact family-comparison probe rather than a final architecture statement
+
 ## Interpretation Rules
 
 To keep conclusions honest:

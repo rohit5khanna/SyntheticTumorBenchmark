@@ -191,12 +191,50 @@ def _build_torch_model(in_channels: int, base_channels: int, model_variant: str 
             x = self.dec1(self.u1(x))
             return self.head(x)
 
+    class MonaiUNETRWrapper(nn.Module):
+        def __init__(self, cin: int, base: int):
+            super().__init__()
+            try:
+                from monai.networks.nets import UNETR
+            except Exception as e:
+                raise RuntimeError(
+                    "model_variant='unetr' requires MONAI. Install it in Colab with `pip install monai`."
+                ) from e
+
+            img_size = (96, 96, 64)
+            feature_size = max(8, int(base))
+            hidden_size = max(192, feature_size * 16)
+            num_heads = 3 if hidden_size % 3 == 0 else 4
+            if hidden_size % num_heads != 0:
+                # Keep a valid transformer width / head pairing.
+                num_heads = 1
+            mlp_dim = hidden_size * 4
+
+            self.net = UNETR(
+                in_channels=cin,
+                out_channels=1,
+                img_size=img_size,
+                feature_size=feature_size,
+                hidden_size=hidden_size,
+                mlp_dim=mlp_dim,
+                num_heads=num_heads,
+                norm_name="instance",
+                res_block=True,
+                dropout_rate=0.0,
+                spatial_dims=3,
+            )
+
+        def forward(self, x):
+            return self.net(x)
+
     if model_variant == "unet":
         return UNet3D(in_channels, base_channels)
     if model_variant == "resunet":
         return ResUNet3D(in_channels, base_channels)
     if model_variant == "plain_cnn":
         return PlainEncoderDecoder3D(in_channels, base_channels)
+    if model_variant == "unetr":
+        return MonaiUNETRWrapper(in_channels, base_channels)
     raise ValueError(f"Unknown model_variant='{model_variant}'.")
 
 
@@ -248,8 +286,8 @@ def run_unet_baseline(
 
     if input_mode not in {"mask", "image_mask"}:
         raise ValueError("input_mode must be one of: mask, image_mask.")
-    if model_variant not in {"unet", "resunet", "plain_cnn"}:
-        raise ValueError("model_variant must be one of: unet, resunet, plain_cnn.")
+    if model_variant not in {"unet", "resunet", "plain_cnn", "unetr"}:
+        raise ValueError("model_variant must be one of: unet, resunet, plain_cnn, unetr.")
 
     _set_seed(seed)
     out_dir = Path(output_dir)

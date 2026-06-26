@@ -3094,3 +3094,15 @@ This roadmap defines:
 - the cross-regime transfer plan,
 - the broader tumor-data / forecastability analysis phase,
 - and the longer-term real-data bridge.
+
+### Implementation note
+
+As the first practical step toward that roadmap, optional transformer-family baseline support was added for:
+
+- `UNETR` via MONAI
+
+This keeps the next experiment small and interpretable:
+
+- one established transformer-style medical 3D model,
+- compared fairly against the current CNN family and `LOCF`,
+- on the stabilized `biophys1` benchmark.
