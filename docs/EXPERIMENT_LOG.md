@@ -3045,3 +3045,52 @@ Possible future novelty extensions remain open:
 To support persistent figure-saving from the regime analysis phase, a plotting/export utility was added:
 
 - `scripts/export_regime_figures.py`
+
+## 2026-06-26: Robustness Confirmation And Architecture-Generalization Planning
+
+### Results Note: ResUNet robustness
+
+An additional seed check was run for `resunet_image_mask` on `biophys1`.
+
+Comparison:
+
+- seed `42`: `0.871031`
+- seed `123`: `0.870167`
+
+Interpretation:
+
+- the current lead result is not behaving like a seed fluke,
+- and the main `ResUNet` advantage on `biophys1` appears very stable on the overall metric.
+
+### Artifact note
+
+Important figures and tables from the regime-analysis phase were exported and saved, including:
+
+- Dice by horizon across methods
+- win rate by tier
+- win rate by input volume bin
+- win rate by recent growth bin
+- win rate by future growth bin
+
+### Design Decision
+
+The next phase should broaden the study carefully rather than immediately scaling into many more models.
+
+The key question is now:
+
+- is the current regime-dependent conclusion specific to `ResUNet`,
+- or does it reflect broader model-family behavior across tumor-growth regimes?
+
+### New planning document
+
+To support that next phase, a dedicated roadmap was created:
+
+- `docs/MODEL_GENERALIZATION_ROADMAP.md`
+
+This roadmap defines:
+
+- the recommended compact model set,
+- the order of architecture-family comparison,
+- the cross-regime transfer plan,
+- the broader tumor-data / forecastability analysis phase,
+- and the longer-term real-data bridge.
