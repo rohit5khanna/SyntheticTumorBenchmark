@@ -2785,3 +2785,215 @@ Other project-tracking documents now include:
 - `docs/BENCHMARK_V2_SPEC.md`
 - `docs/DATA_AUDIT_PLAN.md`
 - `docs/References.md`
+
+## 2026-06-26: biophys1 Audit - First Balanced Tier Ladder Candidate
+
+### Context
+
+After `v2_core_candidate`, the main remaining failure was:
+
+- `Tier A` was still exploding because the procedural rule itself was too aggressive.
+
+To address this, explicit procedural controls were added and a new candidate was generated:
+
+- `configs/benchmark_v2_core_candidate_biophys1.yaml`
+
+### Overall temporal profile
+
+The improved temporal structure was preserved:
+
+- `n_sessions_mean = 7.63`
+- `followup_days_mean = 315.10`
+- `mean_interval_days_mean = 47.68`
+
+Interpretation:
+
+- the benchmark remains much stronger than the earlier versions on longitudinal depth,
+- while staying in the same broad temporal regime as the more recent candidates.
+
+### Key audit result
+
+The `Tier A` explosion was finally controlled.
+
+Test-split `Tier A`:
+
+- `volume_vox_mean = 280.03`
+- `delta_volume_vox_mean = 42.62`
+- `relative_growth_rate_mean = 0.220`
+
+Interpretation:
+
+- this is a major correction relative to the previous `v2_core_candidate`,
+- and now behaves much more like a controlled persistence regime rather than an explosive growth regime.
+
+### Tier ladder behavior
+
+Test split summaries now show a much cleaner ordering by size:
+
+- `Tier A volume_vox_mean = 280.03`
+- `Tier B volume_vox_mean = 1634.27`
+- `Tier C volume_vox_mean = 6297.11`
+
+Relative growth means on test:
+
+- `Tier A = 0.220`
+- `Tier B = 0.254`
+- `Tier C = 0.279`
+
+Interpretation:
+
+- growth rates are now in a much narrower and more believable band,
+- `Tier A` is no longer wildly dominant,
+- `Tier C` remains the largest and most active regime,
+- and the ladder is now substantially more balanced than any earlier candidate.
+
+### Remaining caveats
+
+1. `Tier A` may now be somewhat too small.
+   - It behaves well as a persistence regime,
+   - but its scale may be overly conservative relative to the other tiers.
+
+2. `Tier B` and `Tier C` still show zero-volume sessions and negative growth transitions.
+   - This may be acceptable in a limited treatment-affected subset,
+   - but should still be monitored because too many collapse cases can distort realism.
+
+3. The spatial-complexity separation is not yet as strong as the growth/size separation.
+   - The current audit supports a better tier ladder,
+   - but not yet a fully convincing shape-complexity hierarchy on its own.
+
+### Decision
+
+`biophys1` is the strongest synthetic benchmark candidate so far.
+
+It is the first candidate where:
+
+- the temporal structure is good,
+- `Tier A` is not pathological,
+- `Tier C` is meaningfully larger and more active,
+- and the overall ladder is interpretable enough to justify moving forward.
+
+### Next recommended step
+
+Move to model evaluation on `biophys1`, while keeping two follow-up checks in mind:
+
+1. monitor whether the benchmark remains balanced under forecasting baselines,
+2. and later revisit shape-complexity separation and collapse behavior if needed.
+
+## 2026-06-26: biophys1 Baseline Results Support A Regime-Dependent Forecasting Story
+
+### Setup
+
+Baseline pack run on:
+
+- `fixed_dataset_v2_core_candidate_biophys1`
+
+Methods:
+
+- `LOCF`
+- `unet_mask`
+- `unet_image_mask`
+- `plain_cnn_image_mask`
+- `resunet_image_mask`
+
+Forecast setting:
+
+- `fit_sessions = 3`
+- `horizons = 1,2,3`
+
+### Overall summary
+
+- `LOCF`: `0.7504`
+- `unet_mask`: `0.7721`
+- `unet_image_mask`: `0.7781`
+- `plain_cnn_image_mask`: `0.7473`
+- `resunet_image_mask`: `0.8710`
+
+### Key results
+
+1. `LOCF` remains strong, but is no longer dominant overall.
+
+2. `resunet_image_mask` clearly outperforms all other methods.
+
+3. Not every learned model wins.
+   - `plain_cnn_image_mask` is roughly tied with or slightly below `LOCF`.
+   - This makes the result more believable than a benchmark where every learned model trivially wins.
+
+4. The strongest model beats `LOCF` across all horizons.
+
+Horizon means:
+
+- `h=1`
+  - `resunet_image_mask`: `0.9057`
+  - `LOCF`: `0.8322`
+
+- `h=2`
+  - `resunet_image_mask`: `0.8731`
+  - `LOCF`: `0.7506`
+
+- `h=3`
+  - `resunet_image_mask`: `0.8303`
+  - `LOCF`: `0.6596`
+
+5. The tier behavior is especially informative.
+
+Tier means:
+
+- `Tier A`
+  - `resunet_image_mask`: `0.8539`
+  - `LOCF`: `0.8518`
+
+- `Tier B`
+  - `resunet_image_mask`: `0.8633`
+  - `LOCF`: `0.6823`
+
+- `Tier C`
+  - `resunet_image_mask`: `0.9009`
+  - `LOCF`: `0.6909`
+
+### Interpretation
+
+This is the first benchmark version where the data story and the model story align well enough to support a stronger scientific claim.
+
+The benchmark no longer behaves like a single monotone "easy/medium/hard" ladder.
+Instead, it behaves more like a set of longitudinal tumor-growth regimes:
+
+- `Tier A`: controlled persistence regime where `LOCF` remains extremely competitive
+- `Tier B`: moderate mechanistic regime where stronger learned models help more clearly
+- `Tier C`: larger and more active heterogeneous regime where the strongest learned model shows the clearest advantage
+
+### Hypothesis Update
+
+The project framing should shift from:
+
+- "Can deep models beat `LOCF` on a tiered synthetic benchmark?"
+
+to:
+
+- "How do tumor-growth regime characteristics determine when persistence is sufficient and when stronger learned forecasting models are warranted?"
+
+### Design Decision
+
+Proceed into a deeper analysis phase rather than immediately over-polishing the paper narrative.
+
+The next goal is to mine the sample-level structure behind these regime-dependent wins and losses:
+
+- by size,
+- by future growth,
+- by recent growth,
+- by treatment status,
+- by horizon,
+- and by tier.
+
+### New analysis artifact
+
+To support that next phase, a reusable script was added:
+
+- `scripts/analyze_regime_drivers.py`
+
+Its purpose is to merge:
+
+- per-sample forecast outputs,
+- audit-derived tumor/trajectory features,
+- and pairwise model comparisons such as `LOCF` vs `resunet_image_mask`
+
+so that the benchmark can be analyzed as a data-mining problem rather than only a benchmark leaderboard.
