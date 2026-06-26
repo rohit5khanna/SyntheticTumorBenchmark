@@ -2997,3 +2997,51 @@ Its purpose is to merge:
 - and pairwise model comparisons such as `LOCF` vs `resunet_image_mask`
 
 so that the benchmark can be analyzed as a data-mining problem rather than only a benchmark leaderboard.
+
+## 2026-06-26: Research Standard And Analysis Priorities Reaffirmed
+
+### Discussion Note
+
+The project should now be evaluated primarily as a research task, not as a deadline-driven submission exercise.
+
+The working standard is:
+
+- the work should be solid,
+- defensible,
+- and able to withstand hard questioning.
+
+This means that:
+
+- weak spots should be surfaced rather than hidden,
+- synthetic claims should be scoped carefully,
+- and progress should continue to be logged and preserved as concrete artifacts.
+
+### Design Decision
+
+From this point onward:
+
+1. important experiment cycles should be logged promptly,
+2. important tables and figures should be saved as persistent artifacts,
+3. the analysis should increasingly focus on what tumor / trajectory characteristics inform forecasting strategy,
+4. and any novelty gaps should be treated as opportunities for additional analysis or modeling rather than as something to paper over.
+
+### Current novelty opportunities
+
+At the current stage, the most promising novelty lies less in proposing yet another forecasting architecture and more in showing:
+
+- how longitudinal tumor-growth characteristics affect whether persistence is sufficient,
+- how regime structure should inform model choice,
+- and how a forecasting benchmark can be designed to expose that dependence cleanly.
+
+Possible future novelty extensions remain open:
+
+- an interpretable predictor of when `ResUNet` will beat `LOCF`,
+- a treatment-aware regime analysis,
+- a model-selection policy based on input-side trajectory features,
+- or a more explicit probability-field / uncertainty-aware forecasting view.
+
+### New artifact
+
+To support persistent figure-saving from the regime analysis phase, a plotting/export utility was added:
+
+- `scripts/export_regime_figures.py`
