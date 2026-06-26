@@ -159,6 +159,19 @@ def enrich_with_audit_features(df: pd.DataFrame, audit_root: Path, dataset_root:
 
 
 def summarize_group(df: pd.DataFrame, group_cols: list[str]) -> pd.DataFrame:
+    if not group_cols:
+        return pd.DataFrame(
+            [
+                {
+                    "count": int(len(df)),
+                    "win_rate": float(df["win_flag"].mean()),
+                    "mean_baseline_dice": float(df["baseline_dice"].mean()),
+                    "mean_target_dice": float(df["target_dice"].mean()),
+                    "mean_gap": float(df["dice_gap"].mean()),
+                    "median_gap": float(df["dice_gap"].median()),
+                }
+            ]
+        )
     return (
         df.groupby(group_cols)
         .agg(
