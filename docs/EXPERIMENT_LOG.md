@@ -3312,3 +3312,51 @@ In particular, the next useful analysis should connect regime success/failure to
 To preserve these transfer results as paper-ready figures and tables, a new export utility was added:
 
 - `scripts/export_transfer_figures.py`
+
+## 2026-06-27: Next Analysis Phase Shift To Model Suitability
+
+### Design Decision
+
+The evidence is now strong enough that the project should temporarily stop expanding across more architectures and instead explain the behavior already observed.
+
+The main next-step question is no longer:
+
+- which additional model might score slightly higher,
+
+but rather:
+
+- what observable tumor / trajectory properties determine when persistence is sufficient and when learned forecasting helps.
+
+### Reasoning
+
+At this point the benchmark already shows:
+
+- strong persistence on `Tier A`,
+- clear learned-model gains on `Tier B/C`,
+- asymmetric transfer across regimes,
+- and meaningful architecture-family differences between `ResUNet` and `UNETR`.
+
+That makes a model-suitability analysis more valuable than a larger model zoo.
+
+### New artifact
+
+To support that phase, a case-type analysis utility was added:
+
+- `scripts/analyze_case_types.py`
+
+Its purpose is to turn pairwise comparisons such as `LOCF` vs `ResUNet` into interpretable case groups such as:
+
+- `baseline_wins`
+- `target_wins`
+- `both_easy`
+- `both_hard`
+- `close_mixed`
+
+and summarize them by:
+
+- regime,
+- horizon,
+- input volume,
+- recent growth,
+- treatment-at-input,
+- and key numeric tumor / trajectory features.
