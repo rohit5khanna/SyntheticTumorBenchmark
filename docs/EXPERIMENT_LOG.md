@@ -3172,3 +3172,143 @@ while saving:
 - aggregate CSV summaries,
 - aggregate JSON summaries,
 - and failure records if any model/run combination breaks.
+
+## 2026-06-27: Cross-Regime Transfer Results On `biophys1`
+
+### Experiment ID
+
+`EXP-transfer-biophys1-resunet-unetr`
+
+### Objective
+
+Test whether the strongest mixed-train forecasting result reflects:
+
+- broadly useful growth modeling,
+- or regime-specific shortcut learning.
+
+This was done by training on one synthetic tumor-growth regime and evaluating on another.
+
+### Setup
+
+- dataset: `fixed_dataset_v2_core_candidate_biophys1`
+- train split: `train`
+- eval split: `test`
+- fit sessions: `3`
+- horizons: `1,2,3`
+- reference baseline: `LOCF`
+- learned models:
+  - `ResUNet-image+mask`
+  - `UNETR-image+mask`
+
+Cross-regime matrices:
+
+- `ResUNet`: train on `A`, `B`, `C`; eval on `A`, `B`, `C`
+- `UNETR`: train on `A`, `C`; eval on `A`, `B`, `C`
+
+### Results: `LOCF` by evaluation regime
+
+- eval `A`: `0.8518`
+- eval `B`: `0.6823`
+- eval `C`: `0.6909`
+
+Interpretation:
+
+- `Tier A` is strongly persistence-dominated.
+- `Tier B/C` are less favorable to pure persistence.
+
+### Results: `ResUNet` transfer matrix
+
+- `A -> A`: `0.8631`
+- `A -> B`: `0.6857`
+- `A -> C`: `0.6822`
+
+- `B -> A`: `0.7515`
+- `B -> B`: `0.8697`
+- `B -> C`: `0.8750`
+
+- `C -> A`: `0.6400`
+- `C -> B`: `0.8374`
+- `C -> C`: `0.8950`
+
+### Interpretation: `ResUNet`
+
+1. Training on `A` does **not** transfer upward well.
+   - `A -> B` is essentially tied with `LOCF`.
+   - `A -> C` falls slightly below `LOCF`.
+   - Stable-regime training does not appear to learn the structure needed for active-growth forecasting.
+
+2. Training on `B` transfers best overall.
+   - It remains strong in-regime.
+   - It transfers well to `C`.
+   - It is weaker on `A`, where persistence already dominates.
+
+3. Training on `C` is specialized toward active-growth regimes.
+   - `C -> C` is strongest overall.
+   - `C -> B` is also strong.
+   - `C -> A` is poor.
+
+The main conclusion is that the regime structure is real and consequential:
+
+- persistence-heavy training does not generalize upward,
+- active-growth training does not generalize downward to stable cases,
+- and `Tier B` may be the most transferable training regime in the current benchmark.
+
+### Results: `UNETR` transfer matrix
+
+- `A -> A`: `0.7098`
+- `A -> B`: `0.7651`
+- `A -> C`: `0.7360`
+
+- `C -> A`: `0.7060`
+- `C -> B`: `0.6884`
+- `C -> C`: `0.8176`
+
+### Interpretation: `UNETR`
+
+1. `UNETR` confirms the regime-dependent story, but more weakly than `ResUNet`.
+   - It beats `LOCF` on `B` and `C`.
+   - It loses badly to `LOCF` on `A`.
+
+2. `UNETR` appears more brittle under regime shift.
+   - It does not match the `ResUNet` transfer robustness.
+   - Its strongest result is in the active-growth `C -> C` setting.
+
+3. This improves the credibility of the broader scientific claim.
+   - Not all learned architectures behave the same way.
+   - Not all regimes benefit equally from learning.
+
+### Hypothesis Update
+
+The benchmark should no longer be framed primarily as a simple difficulty ladder.
+
+A better interpretation is:
+
+- `Tier A`: stable persistence regime
+- `Tier B`: intermediate transferable growth regime
+- `Tier C`: aggressive heterogeneous growth regime
+
+Under this interpretation, the main data-mining question becomes:
+
+- how observable tumor / trajectory properties should inform forecasting strategy and model choice.
+
+### Design Decision
+
+The next phase should focus less on adding many more architectures and more on linking:
+
+- transfer behavior,
+- tumor-growth properties,
+- and model suitability.
+
+In particular, the next useful analysis should connect regime success/failure to input-side factors such as:
+
+- current volume,
+- recent growth,
+- treatment-at-input,
+- horizon,
+- and shape complexity proxies.
+
+### New artifact
+
+To preserve these transfer results as paper-ready figures and tables, a new export utility was added:
+
+- `scripts/export_transfer_figures.py`
