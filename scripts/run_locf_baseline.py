@@ -19,6 +19,7 @@ def main() -> None:
     parser.add_argument("--split", type=str, default="test")
     parser.add_argument("--fit_sessions", type=int, default=3)
     parser.add_argument("--horizons", type=str, default="1,2")
+    parser.add_argument("--tiers", type=str, default=None)
     parser.add_argument("--output_dir", type=str, default="outputs/baselines")
     args = parser.parse_args()
 
@@ -28,6 +29,7 @@ def main() -> None:
         fit_sessions=args.fit_sessions,
         horizons=args.horizons,
         output_dir=args.output_dir,
+        allowed_tiers=args.tiers,
     )
     print(json.dumps(summary, indent=2))
 

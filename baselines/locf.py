@@ -7,7 +7,7 @@ from typing import Dict, Iterable, List
 import numpy as np
 
 from .metrics import dice_np
-from .tasks import build_samples_for_split, patient_paths
+from .tasks import build_samples_for_split, parse_tiers, patient_paths
 
 
 def run_locf_baseline(
@@ -16,16 +16,19 @@ def run_locf_baseline(
     fit_sessions: int,
     horizons: Iterable[int] | str,
     output_dir: str | Path,
+    allowed_tiers: Iterable[str] | str | None = None,
 ) -> Dict:
     root = Path(dataset_root)
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    allowed_tiers_l = parse_tiers(allowed_tiers)
 
     samples = build_samples_for_split(
         dataset_root=root,
         split=split,
         fit_sessions=fit_sessions,
         horizons=horizons,
+        allowed_tiers=allowed_tiers_l,
     )
 
     rows: List[Dict] = []
@@ -53,6 +56,7 @@ def run_locf_baseline(
         "baseline": "locf",
         "dataset_root": str(root.resolve()),
         "split": split,
+        "allowed_tiers": allowed_tiers_l,
         "fit_sessions": int(fit_sessions),
         "n_samples": len(rows),
         "mean_dice": float(np.mean(dices)),
@@ -65,4 +69,3 @@ def run_locf_baseline(
         json.dump(summary, f, indent=2)
 
     return summary
-

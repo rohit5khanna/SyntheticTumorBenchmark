@@ -20,6 +20,8 @@ def main() -> None:
     parser.add_argument("--eval_split", type=str, default="test")
     parser.add_argument("--fit_sessions", type=int, default=3)
     parser.add_argument("--horizons", type=str, default="1,2")
+    parser.add_argument("--train_tiers", type=str, default=None)
+    parser.add_argument("--eval_tiers", type=str, default=None)
     parser.add_argument("--input_mode", type=str, choices=["mask", "image_mask"], default="mask")
     parser.add_argument(
         "--model_variant",
@@ -45,6 +47,8 @@ def main() -> None:
         horizons=args.horizons,
         input_mode=args.input_mode,
         output_dir=args.output_dir,
+        train_tiers=args.train_tiers,
+        eval_tiers=args.eval_tiers,
         model_variant=args.model_variant,
         epochs=args.epochs,
         batch_size=args.batch_size,

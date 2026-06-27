@@ -8,7 +8,7 @@ from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
 
-from .tasks import ForecastSample, build_samples_for_split, patient_paths
+from .tasks import ForecastSample, build_samples_for_split, parse_tiers, patient_paths
 
 
 def _set_seed(seed: int) -> None:
@@ -266,6 +266,8 @@ def run_unet_baseline(
     horizons: Iterable[int] | str,
     input_mode: str,
     output_dir: str | Path,
+    train_tiers: Iterable[str] | str | None = None,
+    eval_tiers: Iterable[str] | str | None = None,
     model_variant: str = "unet",
     epochs: int = 12,
     batch_size: int = 2,
@@ -293,8 +295,23 @@ def run_unet_baseline(
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    train_samples = build_samples_for_split(dataset_root, train_split, fit_sessions, horizons)
-    eval_samples = build_samples_for_split(dataset_root, eval_split, fit_sessions, horizons)
+    train_tiers_l = parse_tiers(train_tiers)
+    eval_tiers_l = parse_tiers(eval_tiers)
+
+    train_samples = build_samples_for_split(
+        dataset_root,
+        train_split,
+        fit_sessions,
+        horizons,
+        allowed_tiers=train_tiers_l,
+    )
+    eval_samples = build_samples_for_split(
+        dataset_root,
+        eval_split,
+        fit_sessions,
+        horizons,
+        allowed_tiers=eval_tiers_l,
+    )
 
     train_ds = _TorchForecastDataset(dataset_root, train_samples, input_mode=input_mode)
     eval_ds = _TorchForecastDataset(dataset_root, eval_samples, input_mode=input_mode)
@@ -439,6 +456,8 @@ def run_unet_baseline(
         "dataset_root": str(Path(dataset_root).resolve()),
         "train_split": train_split,
         "eval_split": eval_split,
+        "train_tiers": train_tiers_l,
+        "eval_tiers": eval_tiers_l,
         "fit_sessions": int(fit_sessions),
         "input_mode": input_mode,
         "model_variant": model_variant,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Sequence
 
 import json
 import numpy as np
@@ -19,6 +19,13 @@ class ForecastSample:
     target_treatment: float
 
 
+def infer_tier_from_patient_id(patient_id: str, default_tier: str = "UNKNOWN") -> str:
+    parts = patient_id.split("-")
+    if len(parts) >= 2 and parts[1] in {"A", "B", "C"}:
+        return parts[1]
+    return default_tier
+
+
 def parse_horizons(horizons: str | Iterable[int]) -> List[int]:
     if isinstance(horizons, str):
         out = [int(x.strip()) for x in horizons.split(",") if x.strip()]
@@ -27,6 +34,19 @@ def parse_horizons(horizons: str | Iterable[int]) -> List[int]:
     out = [h for h in out if h >= 1]
     if not out:
         raise ValueError("Need at least one horizon >= 1.")
+    return sorted(set(out))
+
+
+def parse_tiers(tiers: str | Iterable[str] | None) -> List[str] | None:
+    if tiers is None:
+        return None
+    if isinstance(tiers, str):
+        out = [x.strip().upper() for x in tiers.split(",") if x.strip()]
+    else:
+        out = [str(x).strip().upper() for x in tiers if str(x).strip()]
+    out = [tier for tier in out if tier in {"A", "B", "C"}]
+    if not out:
+        raise ValueError("Need at least one valid tier from {A,B,C}.")
     return sorted(set(out))
 
 
@@ -52,6 +72,8 @@ def build_samples_for_split(
     split: str,
     fit_sessions: int,
     horizons: Iterable[int] | str,
+    allowed_tiers: str | Sequence[str] | None = None,
+    allowed_patient_ids: Sequence[str] | None = None,
 ) -> List[ForecastSample]:
     if fit_sessions < 1:
         raise ValueError("fit_sessions must be >= 1.")
@@ -61,6 +83,20 @@ def build_samples_for_split(
     patient_ids = list(splits.get(split, []))
     if not patient_ids:
         raise ValueError(f"No patients found for split '{split}'.")
+
+    allowed_tiers_l = parse_tiers(allowed_tiers)
+    if allowed_tiers_l is not None:
+        allowed_tier_set = set(allowed_tiers_l)
+        patient_ids = [pid for pid in patient_ids if infer_tier_from_patient_id(pid) in allowed_tier_set]
+
+    if allowed_patient_ids is not None:
+        allowed_patient_id_set = {str(pid) for pid in allowed_patient_ids}
+        patient_ids = [pid for pid in patient_ids if pid in allowed_patient_id_set]
+
+    if not patient_ids:
+        raise ValueError(
+            f"No patients remain for split='{split}' after applying tier/patient filters."
+        )
 
     out: List[ForecastSample] = []
     for pid in patient_ids:
@@ -92,4 +128,3 @@ def build_samples_for_split(
             f"No valid samples for split={split}, fit_sessions={fit_sessions}, horizons={horizons_l}."
         )
     return out
-

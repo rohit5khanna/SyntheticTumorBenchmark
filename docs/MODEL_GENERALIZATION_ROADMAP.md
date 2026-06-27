@@ -239,6 +239,12 @@ This phase is the biggest credibility upgrade, but should not block synthetic an
 
 ## Recommended Order Of Execution
 
+Implementation status update:
+
+- `UNETR` support has been added as the first transformer-family probe.
+- tier-aware split filtering has been added to the baseline pipeline.
+- `scripts/run_cross_regime_transfer.py` now provides a compact way to execute the `train-tier -> eval-tier` matrix described in Phase `G3`.
+
 ### Immediate next order
 
 1. freeze and save current `biophys1` evidence

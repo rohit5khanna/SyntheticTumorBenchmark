@@ -3106,3 +3106,69 @@ This keeps the next experiment small and interpretable:
 - one established transformer-style medical 3D model,
 - compared fairly against the current CNN family and `LOCF`,
 - on the stabilized `biophys1` benchmark.
+
+## 2026-06-27: Transformer Probe And Cross-Regime Transfer Tooling
+
+### Results Note: `UNETR` probe on `biophys1`
+
+An initial transformer-family probe was run using `UNETR` with `image+mask` input on the `biophys1` benchmark.
+
+Observed overall result:
+
+- `UNETR-image+mask`: `0.7885`
+
+Interpretation:
+
+- the transformer-family probe clearly beats `LOCF` overall on this benchmark,
+- but it does **not** outperform `ResUNet`,
+- and it appears especially weak in the persistence-heavy `Tier A` regime while remaining strong in `Tier B/C`.
+
+This is useful because it broadens the story beyond a single CNN winner.
+The current evidence now suggests that regime dependence is not just a `UNet` artifact:
+
+- persistence remains highly competitive in stable cases,
+- stronger learned models help much more in active-growth regimes,
+- and architecture family affects how robustly that advantage transfers across regimes.
+
+### Discussion Note: Why cross-regime transfer is the next step
+
+Mixed-train benchmark results answer:
+
+- which method performs best on the full benchmark mixture.
+
+They do **not** answer:
+
+- whether a model has learned a generally useful growth representation,
+- or whether it is leaning heavily on regime-specific shortcuts.
+
+Cross-regime transfer is therefore the right next analysis step.
+It tests whether training on one regime (`A`, `B`, or `C`) generalizes to another, which is much closer to a genuine data-mining question about what tumor-growth structure the model has actually learned.
+
+### Design Decision
+
+Tier-aware filtering was added to the forecasting pipeline so that both learned models and `LOCF` can now be evaluated on selected benchmark regimes without ad hoc notebook filtering.
+
+New capability:
+
+- train split filtered by tier,
+- eval split filtered by tier,
+- and reusable cross-regime sweep support.
+
+### New artifact
+
+A dedicated transfer runner was added:
+
+- `scripts/run_cross_regime_transfer.py`
+
+Its purpose is to produce a clean `train-tier -> eval-tier` experiment matrix for compact model sets such as:
+
+- `ResUNet`
+- `UNETR`
+- plus optional `LOCF` per-eval-tier references
+
+while saving:
+
+- per-run subdirectories,
+- aggregate CSV summaries,
+- aggregate JSON summaries,
+- and failure records if any model/run combination breaks.
