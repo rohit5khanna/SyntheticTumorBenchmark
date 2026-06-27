@@ -3360,3 +3360,40 @@ and summarize them by:
 - recent growth,
 - treatment-at-input,
 - and key numeric tumor / trajectory features.
+
+## 2026-06-27: Morphology/Treatment And Real-Bridge Tooling
+
+### Design Decision
+
+The next evidence phase should deepen the current synthetic result rather than broaden the model set further.
+
+Two high-value follow-up directions were selected:
+
+1. morphology + treatment analysis on the current synthetic case types
+2. a lightweight real-data bridge against processed `SAILOR`
+
+### Why these directions
+
+The current benchmark already shows strong regime dependence, but the most useful next question is:
+
+- which observable tumor properties explain those regime-dependent outcomes,
+
+and then:
+
+- whether qualitatively similar regime structure appears in real data.
+
+### New artifacts
+
+Two additional utilities were added:
+
+- `scripts/analyze_morphology_treatment.py`
+- `scripts/analyze_real_bridge.py`
+
+The first extends the case-type analysis with morphology and treatment-focused summaries.
+
+The second compares synthetic and real audit outputs using:
+
+- patient-level summaries,
+- session-level summaries,
+- transition-level summaries,
+- and a simple shrinking / stable / growing transition-regime comparison.
