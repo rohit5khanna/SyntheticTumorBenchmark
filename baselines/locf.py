@@ -36,7 +36,7 @@ def run_locf_baseline(
 
     for s in samples:
         p = patient_paths(root, s.patient_id)
-        labels = np.load(p["label"]).astype(np.float32)  # [S,1,H,W,D]
+        labels = (np.load(p["label"]).astype(np.float32) > 0).astype(np.float32)  # [S,1,H,W,D]
         pred = labels[s.input_idx]
         target = labels[s.target_idx]
         d = dice_np(pred, target)

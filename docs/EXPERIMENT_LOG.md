@@ -3431,3 +3431,202 @@ without tuning the benchmark specifically to `SAILOR`.
 The plan document defines what `v3-lite` should and should not try to achieve.
 
 The YAML file is a first-pass prototype that uses only controls already supported by the current generator.
+
+## 2026-06-28: Corrected `SAILOR` Sanity Validation
+
+### Experiment ID
+
+`EXP-sailor-locf-resunet-sanity-v1`
+
+### Objective
+
+Run a minimal real-data sanity evaluation on processed `SAILOR` using:
+
+- `LOCF`
+- `ResUNet-mask`
+- `ResUNet-image+mask`
+
+The purpose was not to establish a full real-data benchmark, but to test whether the synthetic forecasting story shows any external validity on a small real longitudinal split.
+
+### Important correction
+
+An initial real-data run produced impossible Dice values greater than `1.0`.
+
+Cause:
+
+- real `SAILOR` labels were not being binarized consistently in the baseline pipeline
+- and real volumes also exposed tensor-shape assumptions that were harmless on synthetic data
+
+Fixes:
+
+- standardized real label sessions to binary masks
+- standardized real image / label channel dimensions
+- adjusted skip-connection spatial matching in the U-Net family for odd-sized real volumes
+
+Only the corrected rerun below should be treated as valid.
+
+### Corrected overall results
+
+- `LOCF`: `0.5159`
+- `ResUNet-image+mask`: `0.5350`
+- `ResUNet-mask`: `0.5400`
+
+Interpretation:
+
+- `ResUNet` still outperformed `LOCF` overall on this `SAILOR` split,
+- but only modestly,
+- and the real-data gain was much smaller than the inflated pre-fix numbers had suggested.
+
+### Corrected horizon-wise results
+
+- horizon `1`
+  - `LOCF`: `0.7069`
+  - `ResUNet-mask`: `0.7022`
+  - `ResUNet-image+mask`: `0.6932`
+
+- horizon `2`
+  - `LOCF`: `0.5534`
+  - `ResUNet-mask`: `0.5778`
+  - `ResUNet-image+mask`: `0.5770`
+
+- horizon `3`
+  - `LOCF`: `0.2875`
+  - `ResUNet-mask`: `0.3402`
+  - `ResUNet-image+mask`: `0.3348`
+
+### Interpretation
+
+1. `LOCF` remains very strong for immediate next-step real forecasting.
+   - At horizon `1`, it is slightly better than both learned models.
+
+2. Learned models help more as the horizon increases.
+   - `ResUNet` is stronger than `LOCF` at horizons `2` and `3`.
+
+3. MRI appearance channels add very little in the current real-data setup.
+   - `ResUNet-mask` and `ResUNet-image+mask` are nearly identical.
+   - The useful signal appears to lie mainly in longitudinal mask dynamics rather than image appearance under this protocol.
+
+### Hypothesis Update
+
+The real-data result supports the original short-horizon concern rather than erasing it:
+
+- persistence is genuinely hard to beat on the immediate next step,
+- even on real data,
+- while learned models become more useful at longer horizons.
+
+This makes the synthetic-to-real story more believable:
+
+- the synthetic benchmark identified a real forecasting tension,
+- but the real effect is more modest and more horizon-dependent than the strongest synthetic wins.
+
+### Design Decision
+
+This result is strong enough to keep in the paper as a focused external-validation sanity check.
+
+However, it does **not** justify a broad real-data model zoo or heavy tuning campaign.
+
+The intended role of `SAILOR` should remain:
+
+- a reality check,
+- a limited external validation endpoint,
+- and evidence that forecasting behavior is regime- and horizon-dependent in real data too.
+
+## 2026-06-28: Final Compact `v3-lite` Synthetic Benchmark
+
+### Experiment ID
+
+`EXP-v3lite-compact-locf-unet-resunet-h123-s42`
+
+### Objective
+
+Run one final compact benchmark on the generalized `v3-lite` synthetic dataset and then stop the experiment expansion loop.
+
+Models:
+
+- `LOCF`
+- `UNet-image+mask`
+- `ResUNet-image+mask`
+
+Dataset:
+
+- `fixed_dataset_v3_lite_generalized`
+
+### Overall results
+
+- `LOCF`: `0.7470`
+- `UNet-image+mask`: `0.7608`
+- `ResUNet-image+mask`: `0.8148`
+
+### Horizon-wise results
+
+- horizon `1`
+  - `ResUNet-image+mask`: `0.9141`
+  - `LOCF`: `0.8693`
+  - `UNet-image+mask`: `0.8435`
+
+- horizon `2`
+  - `ResUNet-image+mask`: `0.8055`
+  - `UNet-image+mask`: `0.7561`
+  - `LOCF`: `0.7146`
+
+- horizon `3`
+  - `ResUNet-image+mask`: `0.7248`
+  - `UNet-image+mask`: `0.6827`
+  - `LOCF`: `0.6570`
+
+### Tier-wise results
+
+- tier `A`
+  - `LOCF`: `0.9017`
+  - `ResUNet-image+mask`: `0.9013`
+  - `UNet-image+mask`: `0.7740`
+
+- tier `B`
+  - `ResUNet-image+mask`: `0.6827`
+  - `UNet-image+mask`: `0.6783`
+  - `LOCF`: `0.5903`
+
+- tier `C`
+  - `ResUNet-image+mask`: `0.8427`
+  - `UNet-image+mask`: `0.8325`
+  - `LOCF`: `0.7104`
+
+### Interpretation
+
+1. `v3-lite` preserves the core synthetic result.
+   - Learned models still outperform `LOCF` overall.
+   - `ResUNet` remains the strongest compact model by a meaningful margin.
+
+2. Tier `A` behaves like a persistence regime.
+   - `LOCF` and `ResUNet` are effectively tied.
+   - This is consistent with the interpretation that highly stable cases leave limited room for learned improvement.
+
+3. The practical synthetic gains come from tiers `B` and `C`.
+   - These are the regimes where learned forecasting clearly adds value over persistence.
+   - The margin is especially strong in tier `C`, which is the more challenging aggressive-growth setting.
+
+4. The horizon pattern is internally consistent.
+   - `ResUNet` is best at all three horizons on synthetic data.
+   - Unlike the corrected `SAILOR` result, synthetic horizon `1` is no longer dominated by `LOCF`.
+
+### Honest caveat
+
+This final `v3-lite` result is useful, but it should not be overclaimed.
+
+The strongest synthetic conclusion is:
+
+- on a generalized synthetic benchmark with broader regime coverage, learned longitudinal models can beat persistence and do so most clearly outside the most stable regime.
+
+The strongest real-data conclusion remains narrower:
+
+- on corrected `SAILOR`, persistence is still very hard to beat at the immediate next step, while learned models help more at longer horizons.
+
+### Design Decision
+
+This is a good stopping point for the current experiment phase.
+
+The next phase should focus on:
+
+- consolidating figures and tables,
+- writing claims that separate synthetic findings from real-data findings,
+- and identifying the minimal next real-data experiments needed for a defensible paper.

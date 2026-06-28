@@ -42,18 +42,36 @@ class _TorchForecastDataset:
     def __len__(self) -> int:
         return len(self.samples)
 
+    @staticmethod
+    def _standardize_label_sessions(arr: np.ndarray) -> np.ndarray:
+        arr = np.asarray(arr, dtype=np.float32)
+        if arr.ndim == 5 and arr.shape[1] == 1:
+            return (arr > 0).astype(np.float32)
+        if arr.ndim == 4:
+            return (arr[:, None, ...] > 0).astype(np.float32)
+        raise ValueError(f"Unsupported label array shape: {arr.shape}")
+
+    @staticmethod
+    def _standardize_image_sessions(arr: np.ndarray) -> np.ndarray:
+        arr = np.asarray(arr, dtype=np.float32)
+        if arr.ndim == 5:
+            return arr
+        if arr.ndim == 4:
+            return arr[:, None, ...]
+        raise ValueError(f"Unsupported image array shape: {arr.shape}")
+
     def _load_pid(self, patient_id: str) -> Dict[str, np.ndarray]:
         if self.cache_arrays and patient_id in self._cache:
             return self._cache[patient_id]
 
         p = patient_paths(self.root, patient_id)
         arrs = {
-            "label": np.load(p["label"]).astype(np.float32),  # [S,1,H,W,D]
+            "label": self._standardize_label_sessions(np.load(p["label"])),  # [S,1,H,W,D]
             "days": np.load(p["days"]).astype(np.float32),
             "treatment": np.load(p["treatment"]).astype(np.float32),
         }
         if self.input_mode == "image_mask":
-            arrs["image"] = np.load(p["image"]).astype(np.float32)  # [S,C,H,W,D]
+            arrs["image"] = self._standardize_image_sessions(np.load(p["image"]))  # [S,C,H,W,D]
 
         if self.cache_arrays:
             self._cache[patient_id] = arrs
@@ -87,6 +105,12 @@ class _TorchForecastDataset:
 def _build_torch_model(in_channels: int, base_channels: int, model_variant: str = "unet"):
     import torch
     import torch.nn as nn
+    import torch.nn.functional as F
+
+    def match_spatial(x, ref):
+        if x.shape[-3:] == ref.shape[-3:]:
+            return x
+        return F.interpolate(x, size=ref.shape[-3:], mode="trilinear", align_corners=False)
 
     class ConvBlock(nn.Module):
         def __init__(self, c_in: int, c_out: int):
@@ -121,9 +145,9 @@ def _build_torch_model(in_channels: int, base_channels: int, model_variant: str 
             e1 = self.e1(x)
             e2 = self.e2(self.p1(e1))
             b = self.b(self.p2(e2))
-            u2 = self.u2(b)
+            u2 = match_spatial(self.u2(b), e2)
             d2 = self.d2(torch.cat([u2, e2], dim=1))
-            u1 = self.u1(d2)
+            u1 = match_spatial(self.u1(d2), e1)
             d1 = self.d1(torch.cat([u1, e1], dim=1))
             return self.head(d1)
 
@@ -163,9 +187,9 @@ def _build_torch_model(in_channels: int, base_channels: int, model_variant: str 
             e1 = self.e1(x)
             e2 = self.e2(self.p1(e1))
             b = self.b(self.p2(e2))
-            u2 = self.u2(b)
+            u2 = match_spatial(self.u2(b), e2)
             d2 = self.d2(torch.cat([u2, e2], dim=1))
-            u1 = self.u1(d2)
+            u1 = match_spatial(self.u1(d2), e1)
             d1 = self.d1(torch.cat([u1, e1], dim=1))
             return self.head(d1)
 
@@ -184,12 +208,14 @@ def _build_torch_model(in_channels: int, base_channels: int, model_variant: str 
             self.head = nn.Conv3d(base, 1, kernel_size=1)
 
         def forward(self, x):
-            x = self.enc1(x)
-            x = self.enc2(self.p1(x))
-            x = self.b(self.p2(x))
-            x = self.dec2(self.u2(x))
-            x = self.dec1(self.u1(x))
-            return self.head(x)
+            x1 = self.enc1(x)
+            x2 = self.enc2(self.p1(x1))
+            x3 = self.b(self.p2(x2))
+            x4 = match_spatial(self.u2(x3), x2)
+            x5 = self.dec2(x4)
+            x6 = match_spatial(self.u1(x5), x1)
+            x7 = self.dec1(x6)
+            return self.head(x7)
 
     class MonaiUNETRWrapper(nn.Module):
         def __init__(self, cin: int, base: int):
