@@ -1,0 +1,147 @@
+dataset:
+  name: synthetic_tumor_benchmark_v3_lite_generalized
+  seed: 42
+  output_root: ./data/synthetic_tumor_benchmark_v3_lite_generalized
+  volume_shape: [96, 96, 64]
+  modalities: [t1, t1ce, t2, flair]
+  save_concentration: false
+  overwrite: false
+  patient_id_prefix: syn
+
+schedule:
+  n_sessions_min: 6
+  n_sessions_max: 12
+  days_interval_min: 20
+  days_interval_max: 90
+  treatment_patient_prob: 0.75
+  treatment_start_session_min: 1
+
+split:
+  train_frac: 0.70
+  val_frac: 0.15
+  test_frac: 0.15
+  seed: 42
+
+labeling:
+  mask_threshold: 0.30
+
+simulation:
+  steps_per_day: 2
+  dt: 0.10
+  rho_range: [0.020, 0.085]
+  dw_range: [0.045, 0.180]
+  treatment_effect_range: [0.060, 0.220]
+  init_foci_min: 1
+  init_foci_max: 3
+  init_sigma_vox_range: [2.2, 5.5]
+  init_amp_range: [0.85, 1.30]
+  procedural_step_divisor: 10.0
+  procedural_seed_count_range: [1, 3]
+  procedural_radius_x_range: [1, 3]
+  procedural_radius_y_range: [1, 3]
+  procedural_radius_z_range: [1, 2]
+  procedural_shift_prob: 0.18
+  procedural_shift_x_range: [-1, 1]
+  procedural_shift_y_range: [-1, 1]
+  procedural_shift_z_range: [0, 0]
+  procedural_offshoot_prob: 0.08
+  procedural_offshoot_x_range: [-6, 6]
+  procedural_offshoot_y_range: [-6, 6]
+  procedural_offshoot_z_range: [-3, 3]
+  procedural_offshoot_radius_x_range: [1, 1]
+  procedural_offshoot_radius_y_range: [1, 1]
+  procedural_offshoot_radius_z_range: [1, 1]
+
+tiers:
+  A:
+    enabled: true
+    n_patients: 90
+    description: Stability and persistence regime with stronger treatment-driven stabilization
+    schedule_overrides:
+      n_sessions_min: 6
+      n_sessions_max: 11
+      days_interval_min: 20
+      days_interval_max: 90
+      treatment_patient_prob: 0.85
+      treatment_start_session_min: 1
+    simulation_overrides:
+      rho_range: [0.015, 0.045]
+      dw_range: [0.035, 0.100]
+      treatment_effect_range: [0.100, 0.240]
+      init_foci_min: 1
+      init_foci_max: 2
+      init_sigma_vox_range: [2.2, 4.4]
+      init_amp_range: [0.75, 1.05]
+      procedural_step_divisor: 18.0
+      procedural_seed_count_range: [1, 2]
+      procedural_radius_x_range: [1, 2]
+      procedural_radius_y_range: [1, 2]
+      procedural_radius_z_range: [1, 1]
+      procedural_shift_prob: 0.06
+      procedural_shift_x_range: [0, 1]
+      procedural_shift_y_range: [0, 1]
+      procedural_shift_z_range: [0, 0]
+      procedural_offshoot_prob: 0.01
+      procedural_offshoot_x_range: [-2, 2]
+      procedural_offshoot_y_range: [-2, 2]
+      procedural_offshoot_z_range: [-1, 1]
+    image_synthesis_overrides:
+      noise_std: 0.025
+      bias_amp: 0.12
+
+  B:
+    enabled: true
+    n_patients: 90
+    description: Mixed clinical compromise regime with broader treatment and scale variation
+    schedule_overrides:
+      n_sessions_min: 6
+      n_sessions_max: 12
+      days_interval_min: 20
+      days_interval_max: 90
+      treatment_patient_prob: 0.80
+      treatment_start_session_min: 1
+    simulation_overrides:
+      rho_range: [0.030, 0.070]
+      dw_range: [0.050, 0.140]
+      treatment_effect_range: [0.080, 0.220]
+      init_foci_min: 1
+      init_foci_max: 3
+      init_sigma_vox_range: [2.8, 5.8]
+      init_amp_range: [0.95, 1.35]
+    image_synthesis_overrides:
+      noise_std: 0.030
+      bias_amp: 0.14
+
+  C:
+    enabled: true
+    n_patients: 90
+    description: Aggressive heterogeneous growth stress regime
+    schedule_overrides:
+      n_sessions_min: 6
+      n_sessions_max: 12
+      days_interval_min: 20
+      days_interval_max: 85
+      treatment_patient_prob: 0.65
+      treatment_start_session_min: 1
+    simulation_overrides:
+      rho_range: [0.055, 0.095]
+      dw_range: [0.080, 0.200]
+      treatment_effect_range: [0.030, 0.140]
+      init_foci_min: 2
+      init_foci_max: 4
+      init_sigma_vox_range: [3.2, 6.2]
+      init_amp_range: [1.00, 1.40]
+    image_synthesis_overrides:
+      noise_std: 0.035
+      bias_amp: 0.16
+
+image_synthesis:
+  noise_std: 0.030
+  bias_amp: 0.14
+  bias_smooth_steps: 8
+  core_threshold: 0.70
+  edema_threshold: 0.20
+  t1_core_boost: 0.20
+  t1ce_core_boost: 0.55
+  t2_edema_boost: 0.45
+  flair_edema_boost: 0.60

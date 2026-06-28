@@ -3397,3 +3397,37 @@ The second compares synthetic and real audit outputs using:
 - session-level summaries,
 - transition-level summaries,
 - and a simple shrinking / stable / growing transition-regime comparison.
+
+## 2026-06-27: Benchmark v3-Lite Direction
+
+### Hypothesis Update
+
+The synthetic-to-real bridge changed the intended role of the current tiers:
+
+- `Tier A` is best treated as a stability / persistence regime
+- `Tier B` is best treated as the closest current mixed real-data compromise
+- `Tier C` is best treated as an aggressive-growth stress regime
+
+This is more accurate than calling `Tier C` the most realistic tier.
+
+### Design Decision
+
+The next benchmark revision should be a principled `v3-lite` step rather than an ad hoc retuning round.
+
+Its purpose should be to improve general regime coverage by:
+
+- increasing treatment prevalence,
+- increasing stable and shrinking transitions,
+- increasing lesion scale,
+- and broadening follow-up variability,
+
+without tuning the benchmark specifically to `SAILOR`.
+
+### New artifacts
+
+- `docs/BENCHMARK_V3_LITE_PLAN.md`
+- `configs/benchmark_v3_lite_generalized.yaml`
+
+The plan document defines what `v3-lite` should and should not try to achieve.
+
+The YAML file is a first-pass prototype that uses only controls already supported by the current generator.
