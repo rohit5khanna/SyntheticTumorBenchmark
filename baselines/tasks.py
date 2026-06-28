@@ -53,12 +53,38 @@ def parse_tiers(tiers: str | Iterable[str] | None) -> List[str] | None:
 def load_splits(dataset_root: str | Path) -> Dict[str, List[str]]:
     root = Path(dataset_root)
     split_path = root / "splits" / "splits.json"
+    if not split_path.exists():
+        patient_ids = list_patient_ids(root)
+        if patient_ids:
+            return {"all": patient_ids}
+        raise FileNotFoundError(f"Could not find split file: {split_path}")
     with split_path.open("r", encoding="utf-8") as f:
         return json.load(f)
 
 
+def detect_dataset_kind(dataset_root: str | Path) -> str:
+    root = Path(dataset_root)
+    if (root / "patients").exists():
+        return "synthetic_benchmark"
+    return "plain_npy"
+
+
+def patient_dir(dataset_root: str | Path) -> Path:
+    root = Path(dataset_root)
+    kind = detect_dataset_kind(root)
+    return root / "patients" if kind == "synthetic_benchmark" else root
+
+
+def list_patient_ids(dataset_root: str | Path) -> List[str]:
+    pdir = patient_dir(dataset_root)
+    patient_ids = []
+    for p in sorted(pdir.glob("*_label.npy")):
+        patient_ids.append(p.name[: -len("_label.npy")])
+    return patient_ids
+
+
 def patient_paths(dataset_root: str | Path, patient_id: str) -> Dict[str, Path]:
-    pdir = Path(dataset_root) / "patients"
+    pdir = patient_dir(dataset_root)
     return {
         "image": pdir / f"{patient_id}_image.npy",
         "label": pdir / f"{patient_id}_label.npy",
