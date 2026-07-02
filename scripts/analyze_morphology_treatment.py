@@ -18,6 +18,8 @@ def add_bins(df: pd.DataFrame) -> pd.DataFrame:
 
     out["elongation_bin"] = qbin(out["input_elongation_ratio"], ["low", "medium", "high"])
     out["compactness_bin"] = qbin(out["input_compactness_proxy"], ["low", "medium", "high"])
+    if "input_connected_component_count" in out.columns:
+        out["component_bin"] = qbin(out["input_connected_component_count"], ["low", "medium", "high"])
     return out
 
 
@@ -44,6 +46,7 @@ def write_report(
     numeric_summary: pd.DataFrame,
     elongation_summary: pd.DataFrame,
     compactness_summary: pd.DataFrame,
+    component_summary: pd.DataFrame,
     treatment_summary: pd.DataFrame,
     tier_treatment_summary: pd.DataFrame,
 ) -> None:
@@ -55,6 +58,8 @@ def write_report(
         f.write(elongation_summary.to_markdown(index=False))
         f.write("\n\n## By Compactness Bin\n\n")
         f.write(compactness_summary.to_markdown(index=False))
+        f.write("\n\n## By Connected-Component Bin\n\n")
+        f.write(component_summary.to_markdown(index=False))
         f.write("\n\n## By Treatment At Input\n\n")
         f.write(treatment_summary.to_markdown(index=False))
         f.write("\n\n## By Tier And Treatment At Input\n\n")
@@ -79,6 +84,7 @@ def main() -> None:
         [
             "input_elongation_ratio",
             "input_compactness_proxy",
+            "input_connected_component_count",
             "input_bbox_x",
             "input_bbox_y",
             "input_bbox_z",
@@ -90,6 +96,7 @@ def main() -> None:
     )
     elongation_summary = summarize_categorical(df, "elongation_bin")
     compactness_summary = summarize_categorical(df, "compactness_bin")
+    component_summary = summarize_categorical(df, "component_bin") if "component_bin" in df.columns else pd.DataFrame()
     treatment_summary = summarize_categorical(df, "treated_at_input")
 
     tier_treatment_summary = (
@@ -106,6 +113,7 @@ def main() -> None:
     numeric_summary.to_csv(out_dir / "morphology_treatment_numeric_summary.csv", index=False)
     elongation_summary.to_csv(out_dir / "case_type_by_elongation_bin.csv", index=False)
     compactness_summary.to_csv(out_dir / "case_type_by_compactness_bin.csv", index=False)
+    component_summary.to_csv(out_dir / "case_type_by_component_bin.csv", index=False)
     treatment_summary.to_csv(out_dir / "case_type_by_treated_at_input.csv", index=False)
     tier_treatment_summary.to_csv(out_dir / "case_type_by_tier_and_treated_at_input.csv", index=False)
     write_report(
@@ -113,6 +121,7 @@ def main() -> None:
         numeric_summary,
         elongation_summary,
         compactness_summary,
+        component_summary,
         treatment_summary,
         tier_treatment_summary,
     )

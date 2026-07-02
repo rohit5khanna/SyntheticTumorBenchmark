@@ -116,6 +116,28 @@ def bbox_dims(mask: np.ndarray) -> Tuple[int, int, int]:
     return int(dims[0]), int(dims[1]), int(dims[2])
 
 
+def connected_component_count(mask: np.ndarray) -> int:
+    coords = np.argwhere(mask > 0)
+    if coords.size == 0:
+        return 0
+    active = {tuple(int(v) for v in row) for row in coords.tolist()}
+    count = 0
+    neighbors = ((1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1))
+
+    while active:
+        seed = active.pop()
+        stack = [seed]
+        count += 1
+        while stack:
+            x, y, z = stack.pop()
+            for dx, dy, dz in neighbors:
+                nbr = (x + dx, y + dy, z + dz)
+                if nbr in active:
+                    active.remove(nbr)
+                    stack.append(nbr)
+    return count
+
+
 def session_shape_metrics(mask: np.ndarray) -> Dict[str, float]:
     vol = float(mask.sum())
     bx, by, bz = bbox_dims(mask)
@@ -123,6 +145,7 @@ def session_shape_metrics(mask: np.ndarray) -> Dict[str, float]:
     nonzero_dims = [d for d in (bx, by, bz) if d > 0]
     elongation = float(max(nonzero_dims) / min(nonzero_dims)) if len(nonzero_dims) == 3 else 0.0
     compactness_proxy = float(vol / bbox_vol) if bbox_vol > 0 else 0.0
+    component_count = float(connected_component_count(mask))
     return {
         "volume_vox": vol,
         "bbox_x": float(bx),
@@ -131,6 +154,7 @@ def session_shape_metrics(mask: np.ndarray) -> Dict[str, float]:
         "bbox_volume_vox": bbox_vol,
         "elongation_ratio": elongation,
         "compactness_proxy": compactness_proxy,
+        "connected_component_count": component_count,
     }
 
 

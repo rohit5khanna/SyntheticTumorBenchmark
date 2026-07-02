@@ -140,6 +140,7 @@ def main() -> None:
         "delta_days",
         "input_elongation_ratio",
         "input_compactness_proxy",
+        "input_connected_component_count",
         "n_sessions",
         "followup_days",
         "mean_interval_days",
