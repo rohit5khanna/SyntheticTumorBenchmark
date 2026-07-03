@@ -11,14 +11,24 @@ import pandas as pd
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, balanced_accuracy_score, roc_auc_score
-from sklearn.model_selection import RepeatedStratifiedKFold
+from sklearn.model_selection import RepeatedStratifiedKFold, StratifiedGroupKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 
-NUMERIC_FEATURES = [
+FULL_NUMERIC_FEATURES = [
     "activity_score",
     "structure_score",
+    "input_volume_vox",
+    "recent_relative_growth",
+    "delta_days",
+    "treated_at_input",
+    "input_connected_component_count",
+    "input_compactness_proxy",
+    "input_elongation_ratio",
+]
+
+RAW_NUMERIC_FEATURES = [
     "input_volume_vox",
     "recent_relative_growth",
     "delta_days",
@@ -47,13 +57,13 @@ def cohen_d(x1: np.ndarray, x0: np.ndarray) -> float:
     return float((np.mean(x1) - np.mean(x0)) / np.sqrt(pooled))
 
 
-def build_anchor_separation(df: pd.DataFrame) -> pd.DataFrame:
+def build_anchor_separation(df: pd.DataFrame, numeric_features: list[str]) -> pd.DataFrame:
     anchor = df[df["profile_group"].isin(["both_easy_core", "target_wins_core"])].copy()
     pos = anchor[anchor["profile_group"] == "target_wins_core"]
     neg = anchor[anchor["profile_group"] == "both_easy_core"]
 
     rows = []
-    for feature in NUMERIC_FEATURES:
+    for feature in numeric_features:
         if feature not in anchor.columns:
             continue
         x1 = pos[feature].dropna().to_numpy(dtype=float)
@@ -80,20 +90,40 @@ def prepare_matrix(df: pd.DataFrame, numeric_features: list[str], categorical_fe
     return work, feature_names
 
 
-def evaluate_binary_task(df: pd.DataFrame, target_col: str, random_state: int) -> tuple[pd.DataFrame, pd.DataFrame]:
-    X, feature_names = prepare_matrix(df, NUMERIC_FEATURES, CATEGORICAL_FEATURES)
+def evaluate_binary_task(
+    df: pd.DataFrame,
+    target_col: str,
+    random_state: int,
+    numeric_features: list[str],
+    group_col: str | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    X, feature_names = prepare_matrix(df, numeric_features, CATEGORICAL_FEATURES)
     y = df[target_col].astype(int).to_numpy()
 
     class_counts = pd.Series(y).value_counts()
     if len(class_counts) < 2 or int(class_counts.min()) < 2:
         raise ValueError("Need both classes with at least 2 samples.")
 
-    n_splits = int(min(5, class_counts.min()))
-    cv = RepeatedStratifiedKFold(n_splits=n_splits, n_repeats=20, random_state=random_state)
+    if group_col and group_col in df.columns:
+        groups = df[group_col].astype(str).to_numpy()
+        group_counts = (
+            df[[group_col, target_col]]
+            .drop_duplicates()
+            .groupby(target_col)[group_col]
+            .nunique()
+        )
+        n_splits = int(min(5, group_counts.min()))
+        cv = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
+        split_iter = cv.split(X, y, groups=groups)
+    else:
+        groups = None
+        n_splits = int(min(5, class_counts.min()))
+        cv = RepeatedStratifiedKFold(n_splits=n_splits, n_repeats=20, random_state=random_state)
+        split_iter = cv.split(X, y)
 
     metrics = []
     coefs = []
-    for train_idx, test_idx in cv.split(X, y):
+    for train_idx, test_idx in split_iter:
         X_train = X.iloc[train_idx]
         X_test = X.iloc[test_idx]
         y_train = y[train_idx]
@@ -173,21 +203,36 @@ def main() -> None:
     parser.add_argument("--soft_profile_csv", type=str, required=True)
     parser.add_argument("--output_dir", type=str, required=True)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--feature_mode", type=str, choices=["full", "raw_only"], default="full")
+    parser.add_argument("--group_col", type=str, default=None)
     args = parser.parse_args()
 
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     df = pd.read_csv(args.soft_profile_csv)
-    anchor_sep = build_anchor_separation(df)
+    numeric_features = FULL_NUMERIC_FEATURES if args.feature_mode == "full" else RAW_NUMERIC_FEATURES
+    anchor_sep = build_anchor_separation(df, numeric_features=numeric_features)
 
     pull_df = df[df["profile_group"].isin(["both_easy_core", "target_wins_core", "cross_regime_pull"])].copy()
     pull_df["target"] = (pull_df["profile_group"] == "cross_regime_pull").astype(int)
-    pull_metrics, pull_coef = evaluate_binary_task(pull_df, "target", random_state=args.seed)
+    pull_metrics, pull_coef = evaluate_binary_task(
+        pull_df,
+        "target",
+        random_state=args.seed,
+        numeric_features=numeric_features,
+        group_col=args.group_col,
+    )
 
     transition_df = df[df["profile_group"].isin(["both_easy_core", "target_wins_core", "transition"])].copy()
     transition_df["target"] = (transition_df["profile_group"] == "transition").astype(int)
-    transition_metrics, transition_coef = evaluate_binary_task(transition_df, "target", random_state=args.seed)
+    transition_metrics, transition_coef = evaluate_binary_task(
+        transition_df,
+        "target",
+        random_state=args.seed,
+        numeric_features=numeric_features,
+        group_col=args.group_col,
+    )
 
     anchor_sep.to_csv(out_dir / "anchor_feature_separation.csv", index=False)
     pull_metrics.to_csv(out_dir / "cross_regime_pull_metrics.csv", index=False)
@@ -210,8 +255,10 @@ def main() -> None:
 
     manifest = {
         "soft_profile_csv": str(Path(args.soft_profile_csv).resolve()),
-        "numeric_features": NUMERIC_FEATURES,
+        "numeric_features": numeric_features,
         "categorical_features": CATEGORICAL_FEATURES,
+        "feature_mode": args.feature_mode,
+        "group_col": args.group_col,
         "output_dir": str(out_dir.resolve()),
     }
     with (out_dir / "anchor_separation_summary.json").open("w", encoding="utf-8") as f:

@@ -487,6 +487,361 @@ and this produces:
 3. transition predictor coefficients,
 4. and compact figures for the most informative descriptors.
 
+## 2026-07-03: Robustness Phase Started
+
+After consolidating the SRD descriptor story, the next step was to ask whether that story survives skeptical scrutiny.
+
+Three concrete risks were identified:
+
+1. sensitivity to hard and soft threshold choices;
+2. partial circularity from using composite activity/structure scores in later predictor analyses;
+3. optimistic predictive estimates caused by row-level rather than patient-level validation.
+
+The robustness phase has therefore started with two explicit additions.
+
+### 1. Threshold sensitivity analysis
+
+The project now includes:
+
+- `scripts/analyze_threshold_sensitivity.py`
+
+This script sweeps:
+
+- hard case-label thresholds
+- and soft regime-membership thresholds
+
+and checks whether the main qualitative story survives, including:
+
+1. whether `both_easy` and `target_wins` remain the two stable anchor populations;
+2. whether the persistence and learned-core fractions remain reasonably high;
+3. whether horizon `3` still shows more cross-regime pull than horizon `1`;
+4. whether Tier `B` still behaves more transition-like than Tier `A`.
+
+This is intended to test whether the current findings are threshold artifacts or stable qualitative structure.
+
+### 2. Independence-aware and raw-feature-aware predictor analysis
+
+The anchor-separation script:
+
+- `scripts/analyze_anchor_separation.py`
+
+has been extended with:
+
+1. `feature_mode = full | raw_only`
+2. optional grouped validation via `group_col`
+
+This allows the same ambiguity-predictor analysis to be rerun:
+
+- without composite activity/structure scores,
+- and with group-aware splits such as `patient_id`.
+
+The purpose is to reduce circularity and to obtain more conservative estimates of how predictive the descriptors really are.
+
+### Why this matters
+
+This robustness phase is the point where the SRD analysis moves from:
+
+- “interesting exploratory story”
+
+toward:
+
+- “defensible descriptor-level evidence.”
+
+The goal is not to eliminate all subjectivity or all threshold dependence, which is unrealistic in a synthetic exploratory setting.
+
+The goal is to show that the main regime picture survives reasonable perturbations and stricter validation choices.
+
+## 2026-07-03: Consolidated SRD Descriptor Evidence Summary
+
+At this point, the SRD data-analysis sprint has moved beyond isolated tables and can now be summarized as a coherent descriptor-level picture of the forecasting problem.
+
+This section freezes the main evidence so that later method work can build on a stable analytical foundation.
+
+### 1. The original five case types are not five equally stable regimes
+
+The analysis now supports a more structured interpretation.
+
+#### Stable anchor populations
+
+Two populations behave like genuine descriptor-level anchors:
+
+1. `both_easy`
+2. `target_wins`
+
+These are the two groups whose cases most consistently align with stable descriptor regions.
+
+#### Ambiguity populations
+
+The remaining populations are better interpreted as ambiguity or failure populations rather than equally stable regimes:
+
+1. `both_hard`
+2. `close_mixed`
+3. `baseline_wins` as a rare edge case
+
+This is an important conceptual correction. It means that the descriptor map is not best viewed as a clean five-class partition.
+
+Instead, it is better viewed as:
+
+- two anchor regimes,
+- plus boundary/failure populations around them.
+
+### 2. The descriptor map contains two anchor regimes
+
+The regime-map and soft-membership analyses now support the following anchor interpretation.
+
+#### Persistence-support anchor
+
+`both_easy_core` corresponds to a persistence-friendly operating region.
+
+Typical descriptor profile:
+
+- negative activity score
+- negative structure score
+- smaller tumor burden
+- lower recent growth
+- simpler connected-component structure
+- treatment often present
+
+#### Learned-advantage anchor
+
+`target_wins_core` corresponds to a learned-model-benefit region.
+
+Typical descriptor profile:
+
+- positive activity score
+- positive structure score
+- much larger tumor burden
+- higher recent growth
+- more connected components
+- treatment typically absent
+
+### 3. The cross-regime population is large and meaningful
+
+The soft-regime profile results show that:
+
+- `cross_regime_pull` is not a tiny residual group;
+- it accounts for roughly `30%` of the analyzed cases.
+
+This matters because it means ambiguity is not a corner case. It is a major part of the short-horizon forecasting landscape.
+
+The key profile-level finding is that `cross_regime_pull` is **not** strongly persistence-like.
+
+Compared with `both_easy_core`, it shows:
+
+- much higher activity,
+- much higher structure complexity,
+- much larger volume,
+- more connected components,
+- and more irregular morphology.
+
+But compared with `target_wins_core`, it is still less extreme in the main activity/burden descriptors.
+
+Interpretation:
+
+- `cross_regime_pull` looks like a partially activated, structurally messy population that leans toward the learned side without cleanly settling into the learned anchor.
+
+### 4. Transition is a smaller but distinct intermediate population
+
+`transition` is much smaller than `cross_regime_pull`, but it appears to reflect a different ambiguity mechanism.
+
+The evidence suggests:
+
+- it is not simply the same as cross-regime pull;
+- it is more strongly associated with mixed descriptor support rather than confident pull toward one anchor;
+- it is especially associated with Tier `B`.
+
+This suggests that the ambiguous middle of the forecasting map may itself contain at least two submodes:
+
+1. a strong cross-regime pull toward one anchor;
+2. a more genuinely intermediate transition zone.
+
+### 5. Tier structure is meaningful and not cosmetic
+
+The soft-regime profile analysis shows a clear tier interpretation.
+
+#### Tier A
+
+Tier `A` is strongly associated with the persistence-support anchor.
+
+`both_easy_core` is dominated by Tier `A`.
+
+#### Tier C
+
+Tier `C` is strongly associated with the learned-advantage anchor.
+
+`target_wins_core` is dominated by Tier `C`.
+
+#### Tier B
+
+Tier `B` contributes disproportionately to the transition population.
+
+Interpretation:
+
+- Tier `A` behaves like the clearest persistence regime;
+- Tier `C` behaves like the clearest learned-advantage regime;
+- Tier `B` appears to be the strongest mixed or transitional regime.
+
+This is one of the clearest validations so far that the tier construction is analytically meaningful and not arbitrary.
+
+### 6. Horizon changes regime composition, not just difficulty
+
+One of the strongest findings in the data sprint is that increasing horizon changes the descriptor-regime composition of the cases.
+
+The key pattern is:
+
+- at horizon `1`, anchor-aligned cases dominate;
+- by horizon `3`, cross-regime-pull becomes as common as or more common than anchor alignment.
+
+This means that longer short-horizon forecasting is not just “the same cases becoming harder.”
+
+It is also:
+
+- a compositional shift away from clean anchor support,
+- and toward descriptor ambiguity.
+
+This is a stronger statement than a generic “accuracy decreases with horizon” observation.
+
+### 7. What most strongly separates the two anchor populations
+
+The anchor-separation analysis gives a very clear ranking of anchor descriptors.
+
+Top standardized separators:
+
+1. `activity_score`
+2. `input_volume_vox`
+3. `treated_at_input`
+4. `recent_relative_growth`
+5. `structure_score`
+6. `input_connected_component_count`
+
+Interpretation:
+
+The persistence-vs-learned split is governed primarily by:
+
+- activity,
+- burden,
+- treatment state,
+- recent growth,
+- and structural complexity.
+
+By contrast:
+
+- `delta_days` is only a weak anchor separator;
+- `input_elongation_ratio` is almost negligible for distinguishing the anchors.
+
+This is important because it narrows the descriptor story substantially.
+
+### 8. What predicts cross-regime pull
+
+Cross-regime pull is moderately predictable from forecast-time descriptors, with meaningful but not overwhelming signal.
+
+The strongest positive predictors are:
+
+1. `input_connected_component_count`
+2. `input_compactness_proxy`
+3. `input_elongation_ratio`
+4. `structure_score`
+5. `horizon_3`
+
+Important negative/offsetting signals include:
+
+- very large `input_volume_vox`
+- treatment-at-input
+- horizon `1`
+
+Interpretation:
+
+Cross-regime pull is associated less with the most extreme learned-anchor cases and more with:
+
+- structural messiness,
+- morphological irregularity,
+- and horizon-driven ambiguity.
+
+This is one of the clearest indications that ambiguity is driven by structural complexity rather than only by raw tumor burden.
+
+### 9. What predicts transition
+
+Transition cases are also moderately predictable, but their signature differs from cross-regime pull.
+
+The strongest signals include:
+
+1. lack of treatment-at-input
+2. lower recent relative growth
+3. higher compactness proxy
+4. more connected components
+5. lower `delta_days`
+6. Tier `B`
+
+Interpretation:
+
+Transition cases appear to be:
+
+- structurally irregular,
+- not strongly persistence-like,
+- but also not fully activated learned-core cases.
+
+They look more like a middle-zone population with mixed descriptor support.
+
+### 10. Refined descriptor hierarchy
+
+The data sprint now supports a refined descriptor hierarchy.
+
+#### Primary descriptors
+
+These now appear central to the SRD forecasting-regime story:
+
+1. `activity_score` or its underlying activity components
+2. `input_volume_vox`
+3. `treated_at_input`
+4. `recent_relative_growth`
+5. `structure_score`
+6. `input_connected_component_count`
+
+#### Secondary descriptors
+
+These matter more for ambiguity structure than for anchor separation:
+
+1. `input_compactness_proxy`
+2. `input_elongation_ratio`
+3. `delta_days`
+
+### 11. Current best research interpretation
+
+The strongest current interpretation is:
+
+1. short-horizon tumor forecasting is not a uniform problem;
+2. it contains at least two stable operating regimes:
+   - persistence-support
+   - learned-advantage
+3. it also contains ambiguity populations that are:
+   - descriptor-driven,
+   - horizon-sensitive,
+   - and not well represented by a rigid hard-label taxonomy.
+
+This is now a substantially stronger result than the original framing of simply comparing models by tier or horizon.
+
+### 12. Immediate implication for later method work
+
+When the project transitions from the data-analysis sprint to method development, the first regime-conditioned forecasting design should be based on this descriptor hierarchy.
+
+The most defensible first conditioning variables are now:
+
+1. activity-related descriptors
+2. tumor burden
+3. treatment-at-input
+4. recent growth
+5. structure complexity
+
+The method question should not be:
+
+- can we invent a completely new forecasting model from scratch?
+
+It should first be:
+
+- can these regime descriptors help an existing forecasting model decide whether a case is persistence-like, learned-core-like, or ambiguity-prone?
+
+That is the current bridge from SRD analysis to a later regime-conditioned forecasting model.
+
 It is about:
 
 - deciding what the present evaluation framework can genuinely claim,
