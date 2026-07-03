@@ -258,6 +258,46 @@ The intention is that after this sprint, the project should be in a stronger pos
 
 This sprint is not just about adding more experiments.
 
+## 2026-07-03: Regime-Analysis Robustness Deepening
+
+We are now explicitly stress-testing the descriptor-driven regime story from multiple angles so that the analysis is not dependent on a single modeling choice or a single threshold definition.
+
+### What the latest robustness checks established
+
+The current evidence suggests a split between what is strongly stable and what is only moderately stable.
+
+Strongly stable:
+
+1. the `target_wins` anchor persists across threshold sweeps;
+2. the main descriptor signals remain visible even after removing the composite `activity_score` and `structure_score`;
+3. morphology and burden descriptors continue to matter when predicting cross-regime pull and transition populations;
+4. part of the signal survives patient-grouped validation, meaning the story is not entirely driven by repeated within-patient structure.
+
+Moderately stable:
+
+1. the `both_easy` anchor depends on a reasonable threshold band and is not threshold-invariant;
+2. the soft-profile composition is useful but sensitive to stricter stability definitions;
+3. transition prediction is structurally informative but remains the noisiest and least stable component.
+
+### New robustness layer now being added
+
+To make the data-analysis side more defensible, we are extending the pipeline with:
+
+1. descriptor ablations that remove `tier`, remove `horizon`, and remove both;
+2. permutation checks so that observed predictive signal can be compared against a null label baseline;
+3. bootstrap confidence intervals for the anchor-separation feature gaps;
+4. PCA-based structure analysis to study whether the descriptor geometry itself reflects meaningful separation between anchor and ambiguous populations.
+
+### Why this matters
+
+This phase keeps the focus on the data and descriptor structure rather than turning the work into a model-comparison exercise.
+
+The goal is to answer a sharper question:
+
+> Which forecast-time tumor descriptors consistently explain when learned forecasting departs from persistence, and which parts of that explanation remain stable under harder scrutiny?
+
+That question is now the center of the current sprint.
+
 ## 2026-07-03: Exception-Case Audit Added To SRD Analysis Stack
 
 The next refinement layer in the SRD analysis was to stop looking only at average behavior and explicitly audit the cases that break the dominant regime story.
