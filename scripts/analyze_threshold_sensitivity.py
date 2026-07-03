@@ -197,7 +197,8 @@ def write_report(path: Path, overall: pd.DataFrame, hard_df: pd.DataFrame, soft_
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Stress-test the SRD regime story under hard and soft threshold changes.")
-    parser.add_argument("--pairwise_csv", type=str, required=True)
+    parser.add_argument("--pairwise_csv", type=str, default=None)
+    parser.add_argument("--case_type_csv", type=str, default=None)
     parser.add_argument("--output_dir", type=str, required=True)
     parser.add_argument("--gap_margins", type=str, default="0.03,0.05,0.07")
     parser.add_argument("--high_dice_values", type=str, default="0.82,0.85,0.88")
@@ -210,7 +211,11 @@ def main() -> None:
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    pair = pd.read_csv(args.pairwise_csv)
+    if bool(args.pairwise_csv) == bool(args.case_type_csv):
+        raise ValueError("Provide exactly one of --pairwise_csv or --case_type_csv.")
+
+    source_csv = args.pairwise_csv if args.pairwise_csv else args.case_type_csv
+    pair = pd.read_csv(source_csv)
     hard_df = hard_sweep(
         pair,
         gap_margins=parse_float_list(args.gap_margins),
@@ -234,7 +239,8 @@ def main() -> None:
     write_report(out_dir / "threshold_sensitivity_report.md", overall, hard_df, soft_df)
 
     manifest = {
-        "pairwise_csv": str(Path(args.pairwise_csv).resolve()),
+        "source_csv": str(Path(source_csv).resolve()),
+        "source_kind": "pairwise_csv" if args.pairwise_csv else "case_type_csv",
         "gap_margins": parse_float_list(args.gap_margins),
         "high_dice_values": parse_float_list(args.high_dice_values),
         "low_dice_values": parse_float_list(args.low_dice_values),
