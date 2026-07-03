@@ -383,6 +383,53 @@ and the consolidated runner:
 
 was extended again so this softer regime-membership layer can be reproduced in the same bundle.
 
+## 2026-07-03: Soft Regime Profile Characterization Added
+
+Once the soft regime-membership layer was in place, the next natural question became:
+
+- what do the ambiguous populations actually look like?
+
+Counting `core_aligned`, `cross_regime_pull`, and `transition` cases is useful, but it is still one step short of describing their descriptor-level identities.
+
+### What this new layer adds
+
+The new profile characterization layer explicitly compares four populations:
+
+1. `both_easy_core`
+2. `target_wins_core`
+3. `cross_regime_pull`
+4. `transition`
+
+This turns the soft regime analysis into a more interpretable descriptor study by showing:
+
+1. how the persistence core differs from the learned-advantage core;
+2. whether cross-regime-pull cases are closer to one anchor or sit in their own mixed profile;
+3. whether transition cases are truly intermediate.
+
+### Why this matters
+
+This is useful for two reasons.
+
+First, it strengthens the data-analysis side of the project by making the ambiguous populations more concrete.
+
+Second, it helps the later methodological direction, because a future regime-conditioned forecasting method could use these populations differently:
+
+- high-confidence persistence-like cases;
+- high-confidence learned-correction cases;
+- and uncertain boundary cases.
+
+### Implementation note
+
+The SRD workflow now also includes:
+
+- `scripts/analyze_soft_regime_profiles.py`
+
+which reads the soft-membership output and produces:
+
+1. profile-level summaries,
+2. tier- and horizon-wise composition tables,
+3. and descriptor distribution figures for the core and ambiguous populations.
+
 It is about:
 
 - deciding what the present evaluation framework can genuinely claim,
