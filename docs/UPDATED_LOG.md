@@ -313,6 +313,76 @@ and the consolidated runner:
 
 was extended so that this exception-case audit becomes part of the same reproducible analysis bundle.
 
+## 2026-07-03: Soft Regime Membership Layer Added
+
+The first exception-case audit was useful, but it also exposed a limitation in the current hard-label analysis.
+
+### Why this additional layer was needed
+
+The exception results showed that:
+
+1. `target_wins` still has a strong descriptor core;
+2. `both_easy` also has a meaningful persistence-friendly core;
+3. `both_hard` and `close_mixed` do not behave like equally stable regimes;
+4. a large number of cases were being flagged simply because they were slightly closer to another centroid.
+
+That is not necessarily evidence of true anomalies. It is better interpreted as evidence that the middle of the descriptor map is fuzzy and transitional.
+
+So instead of treating every ambiguity as an exception, the analysis now introduces a softer membership view.
+
+### What the soft regime layer does
+
+This new layer identifies only the **stable descriptor cores** and then measures how strongly each sample aligns with them.
+
+At the current thresholds, the stable profiles are expected to be the regimes with:
+
+1. enough sample count;
+2. a sufficiently dominant descriptor quadrant.
+
+The key idea is:
+
+- `both_easy` and `target_wins` behave more like anchor regimes,
+- while `both_hard` and `close_mixed` often behave more like transition populations.
+
+The soft-membership analysis therefore:
+
+1. computes distances from each case to the stable regime centroids;
+2. converts those distances into soft membership probabilities;
+3. labels cases as:
+   - `core_aligned`,
+   - `transition`,
+   - or `cross_regime_pull`.
+
+### Why this matters
+
+This is a more faithful descriptor-level interpretation than forcing every sample into a rigid category.
+
+It lets the analysis distinguish between:
+
+1. clean support for a stable regime story;
+2. ambiguous boundary cases;
+3. cases genuinely pulled toward another regime.
+
+That is especially valuable for the broader forecasting question, because a future regime-conditioned model should likely treat:
+
+- core persistence-like cases,
+- core learned-advantage cases,
+- and fuzzy transition cases
+
+as meaningfully different operating conditions.
+
+### Implementation note
+
+The SRD workflow now also includes:
+
+- `scripts/analyze_soft_regime_membership.py`
+
+and the consolidated runner:
+
+- `scripts/run_srd_regime_analysis.py`
+
+was extended again so this softer regime-membership layer can be reproduced in the same bundle.
+
 It is about:
 
 - deciding what the present evaluation framework can genuinely claim,

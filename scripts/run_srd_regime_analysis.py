@@ -43,6 +43,7 @@ def write_report(path: Path, payload: dict) -> None:
         f"- Case types: `{payload['outputs']['case_type_dir']}`",
         f"- Morphology/treatment: `{payload['outputs']['morphology_treatment_dir']}`",
         f"- Exception cases: `{payload['outputs']['exception_case_dir']}`",
+        f"- Soft regime membership: `{payload['outputs']['soft_regime_dir']}`",
         f"- Figures: `{payload['outputs']['figure_dir']}`",
         "",
         "## Notes",
@@ -76,6 +77,7 @@ def main() -> None:
     parser.add_argument("--skip_descriptor_probe", action="store_true")
     parser.add_argument("--skip_regime_map", action="store_true")
     parser.add_argument("--skip_exception_cases", action="store_true")
+    parser.add_argument("--skip_soft_regime", action="store_true")
     parser.add_argument("--output_dir", type=str, required=True)
     args = parser.parse_args()
 
@@ -93,6 +95,7 @@ def main() -> None:
     descriptor_dir = out_root / "descriptor_signal"
     regime_map_dir = out_root / "regime_map"
     exception_dir = out_root / "exception_cases"
+    soft_regime_dir = out_root / "soft_regime_membership"
     fig_dir = out_root / "figures"
 
     python = sys.executable
@@ -212,6 +215,20 @@ def main() -> None:
             env=common_env,
         )
 
+    if not args.skip_soft_regime:
+        run_step(
+            [
+                python,
+                str(ROOT / "scripts" / "analyze_soft_regime_membership.py"),
+                "--case_type_csv",
+                str(case_dir / "case_type_samples.csv"),
+                "--output_dir",
+                str(soft_regime_dir),
+            ],
+            "soft regime membership analysis",
+            env=common_env,
+        )
+
     run_step(
         [
             python,
@@ -245,6 +262,7 @@ def main() -> None:
             "descriptor_signal_dir": str(descriptor_dir.resolve()) if not args.skip_descriptor_probe else None,
             "regime_map_dir": str(regime_map_dir.resolve()) if not args.skip_regime_map else None,
             "exception_case_dir": str(exception_dir.resolve()) if not args.skip_exception_cases else None,
+            "soft_regime_dir": str(soft_regime_dir.resolve()) if not args.skip_soft_regime else None,
             "figure_dir": str(fig_dir.resolve()),
         },
     }
