@@ -430,6 +430,63 @@ which reads the soft-membership output and produces:
 2. tier- and horizon-wise composition tables,
 3. and descriptor distribution figures for the core and ambiguous populations.
 
+## 2026-07-03: Anchor Separation And Pull Predictors Added
+
+The soft regime profiles clarified the four main populations, but one more question remained:
+
+- which descriptors most strongly separate the two anchor populations?
+- and which descriptors are most associated with entering the ambiguous pool?
+
+That question is now addressed explicitly.
+
+### What this layer does
+
+The new analysis has two parts.
+
+1. **Anchor separation**
+
+It directly compares:
+
+- `both_easy_core`
+- `target_wins_core`
+
+and ranks descriptors by standardized mean gap.
+
+This tells us which variables most cleanly separate the persistence-support anchor from the learned-advantage anchor.
+
+2. **Ambiguity predictors**
+
+It then uses simple interpretable classifiers to predict:
+
+- `cross_regime_pull` vs anchor-core cases
+- `transition` vs anchor-core cases
+
+This moves the analysis from descriptive grouping to explanatory probing:
+
+- not only what the groups look like,
+- but which descriptors are most associated with ambiguous or unstable regime support.
+
+### Why this matters
+
+This is important because it helps identify:
+
+1. which descriptors define the main anchor regimes;
+2. which descriptors are responsible for regime ambiguity;
+3. which variables are most promising for any later regime-conditioned forecasting design.
+
+### Implementation note
+
+The SRD workflow now also includes:
+
+- `scripts/analyze_anchor_separation.py`
+
+and this produces:
+
+1. anchor-separation tables,
+2. cross-regime-pull predictor coefficients,
+3. transition predictor coefficients,
+4. and compact figures for the most informative descriptors.
+
 It is about:
 
 - deciding what the present evaluation framework can genuinely claim,
