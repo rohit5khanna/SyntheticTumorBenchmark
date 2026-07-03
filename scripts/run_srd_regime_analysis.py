@@ -72,6 +72,7 @@ def main() -> None:
     parser.add_argument("--gap_margin", type=float, default=0.05)
     parser.add_argument("--high_dice", type=float, default=0.85)
     parser.add_argument("--low_dice", type=float, default=0.70)
+    parser.add_argument("--skip_descriptor_probe", action="store_true")
     parser.add_argument("--output_dir", type=str, required=True)
     args = parser.parse_args()
 
@@ -86,6 +87,7 @@ def main() -> None:
     regime_dir = out_root / "regime_analysis"
     case_dir = out_root / "case_types"
     morph_dir = out_root / "morphology_treatment"
+    descriptor_dir = out_root / "descriptor_signal"
     fig_dir = out_root / "figures"
 
     python = sys.executable
@@ -163,6 +165,20 @@ def main() -> None:
         env=common_env,
     )
 
+    if not args.skip_descriptor_probe:
+        run_step(
+            [
+                python,
+                str(ROOT / "scripts" / "analyze_descriptor_signal.py"),
+                "--case_type_csv",
+                str(case_dir / "case_type_samples.csv"),
+                "--output_dir",
+                str(descriptor_dir),
+            ],
+            "descriptor signal probe",
+            env=common_env,
+        )
+
     run_step(
         [
             python,
@@ -193,6 +209,7 @@ def main() -> None:
             "regime_analysis_dir": str(regime_dir.resolve()),
             "case_type_dir": str(case_dir.resolve()),
             "morphology_treatment_dir": str(morph_dir.resolve()),
+            "descriptor_signal_dir": str(descriptor_dir.resolve()) if not args.skip_descriptor_probe else None,
             "figure_dir": str(fig_dir.resolve()),
         },
     }
