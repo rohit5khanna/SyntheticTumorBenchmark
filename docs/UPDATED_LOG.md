@@ -1227,3 +1227,215 @@ This means the SRD artifact bundle can now contain:
 - descriptor-signal outputs
 
 in one reproducible run.
+
+## 2026-07-03: Descriptor-Signal Probe Findings
+
+The first descriptor-signal probe has now produced interpretable feature rankings from forecast-origin descriptors alone.
+
+The attached output filenames suggest the three logistic-importance tables correspond to:
+
+1. `resunet_beats_locf`
+2. `target_wins_vs_both_easy`
+3. `both_hard_vs_both_easy`
+
+That mapping should be preserved explicitly in later saved output directories, but even at this stage the qualitative pattern is already informative.
+
+### Overall descriptor-only predictability
+
+The simple descriptor-only models already carry meaningful signal:
+
+- shallow decision tree:
+  - accuracy: `0.759`
+  - balanced accuracy: `0.753`
+  - ROC-AUC: `0.808`
+
+- logistic regression:
+  - accuracy: `0.687`
+  - balanced accuracy: `0.680`
+  - ROC-AUC: `0.750`
+
+Interpretation:
+
+- forecast-origin descriptors alone are not trivial or weak;
+- they already support useful discrimination of forecasting regimes;
+- a simple nonlinear model performs notably better than linear logistic regression, which suggests that regime structure is at least partly interaction-based rather than purely linear.
+
+### Task 1: Predicting whether `ResUNet` beats `LOCF`
+
+Top logistic features:
+
+- `recent_relative_growth` (`+1.19`)
+- `n_sessions` (`-0.61`)
+- `input_connected_component_count` (`+0.59`)
+- `input_compactness_proxy` (`+0.42`)
+- `input_elongation_ratio` (`-0.40`)
+
+Interpretation:
+
+- recent growth is the strongest single descriptor for learned-model advantage;
+- structural complexity also matters, especially fragmentation/component count;
+- persistence becomes relatively less favorable when recent growth and structural complexity are high;
+- the negative sign on `n_sessions` suggests that longer accumulated histories may align with more persistence-sufficient settings in the current SRD;
+- input volume is less dominant here than expected once recent growth and morphology are already included.
+
+### Task 2: Separating `target_wins` from `both_easy`
+
+Top logistic features:
+
+- `treated_at_input` (`-1.10`)
+- `input_volume_vox` (`+1.03`)
+- `delta_days` (`+0.66`)
+- `recent_relative_growth` (`+0.66`)
+- `mean_interval_days` (`-0.46`)
+- `input_compactness_proxy` (`+0.45`)
+
+Interpretation:
+
+- this is one of the clearest results in the current project;
+- untreated-at-input status strongly distinguishes cases where learned correction helps from cases where both methods are simply easy;
+- input volume is a major separator here, much more strongly than in the broader win/loss task;
+- larger tumors, stronger recent growth, and longer immediate forecast gaps all push a case toward the learned-win side;
+- this strongly supports keeping:
+  - treatment-at-input,
+  - input volume,
+  - recent growth,
+  - and local time-to-target
+  as core regime descriptors.
+
+### Task 3: Separating `both_hard` from `both_easy`
+
+Top logistic features:
+
+- `input_connected_component_count` (`+1.56`)
+- `input_compactness_proxy` (`+1.06`)
+- `delta_days` (`+0.81`)
+- `treated_at_input` (`-0.63`)
+
+Interpretation:
+
+- this is extremely useful because it separates "learned model helps" from "case is hard for everyone";
+- connected-component count is the strongest feature here by a wide margin;
+- fragmentation and morphology appear to be major markers of intrinsic case difficulty;
+- compactness is also important;
+- longer forecast gaps contribute to overall hardness;
+- treatment again pushes toward easier/persistence-sufficient behavior.
+
+### Main research takeaway
+
+The descriptor signal is not just "some features matter."
+It is more structured:
+
+1. `recent_relative_growth` is the strongest general signal for learned advantage.
+2. `input_volume_vox` is especially important for separating learned-win cases from simple persistence-sufficient cases.
+3. `treated_at_input` is a major stabilizing descriptor in the current SRD.
+4. `input_connected_component_count` is the clearest marker of intrinsic structural difficulty.
+5. `input_compactness_proxy` also contributes meaningfully, especially on the harder-case side.
+
+### Updated descriptor grouping
+
+The current evidence supports a natural grouping of forecast-origin descriptors:
+
+#### Group A: Learned-advantage descriptors
+
+- `recent_relative_growth`
+- `input_volume_vox`
+- `delta_days`
+- `treated_at_input`
+
+#### Group B: Structural-hardness descriptors
+
+- `input_connected_component_count`
+- `input_compactness_proxy`
+- `input_elongation_ratio`
+
+These groups overlap, but they are not identical.
+
+That is important because it suggests that "when learning helps" and "when the case is intrinsically hard" are related but distinct questions.
+
+### Immediate implication
+
+The next regime-conditioned method should probably not use only one scalar regime score.
+
+A stronger design would likely use at least two kinds of regime information:
+
+1. activity / growth state
+2. morphology / structural complexity state
+
+This could later support:
+
+- a compact descriptor embedding,
+- a two-branch conditioning signal,
+- or a light gating mechanism that modulates trust in persistence versus learned correction.
+
+## 2026-07-03: Two-Axis Regime Map Added
+
+The next analysis layer has now been implemented as an explicit two-axis regime map:
+
+- `scripts/analyze_regime_map.py`
+
+### Purpose
+
+The descriptor-signal probe showed that the forecast-origin story is not one-dimensional.
+
+At least two different descriptor families emerged:
+
+1. activity / change state
+2. structural complexity state
+
+The regime-map step makes that explicit rather than leaving it only as an interpretation of coefficient tables.
+
+### Current hand-built axes
+
+#### Activity score
+
+Built from signed standardized versions of:
+
+- `input_volume_vox` (`+`)
+- `recent_relative_growth` (`+`)
+- `delta_days` (`+`)
+- `treated_at_input` (`-`)
+
+#### Structure score
+
+Built from signed standardized versions of:
+
+- `input_connected_component_count` (`+`)
+- `input_compactness_proxy` (`+`)
+- `input_elongation_ratio` (`-`)
+
+### Why this is useful
+
+This creates a more concrete object for the project:
+
+- not just tier labels,
+- not just feature-importance tables,
+- but an explicit regime state space in which different case types can be located.
+
+This should help answer:
+
+- where `both_easy` cases sit;
+- where `target_wins` sit;
+- where `both_hard` cases sit;
+- and whether the descriptor space suggests natural conditioning or gating structure for a later forecasting method.
+
+### Outputs
+
+The regime-map script produces:
+
+- scored case table
+- score summary by case type
+- quadrant summary by case type
+- quadrant summary by tier
+- scatter plot in activity/structure space
+- boxplots for activity and structure scores by case type
+
+### Workflow integration
+
+The consolidated SRD runner now supports this regime-map step by default unless explicitly skipped.
+
+This keeps the SRD artifact bundle aligned with the current research direction:
+
+- tier-level summaries
+- case-type summaries
+- descriptor signal
+- and now an explicit two-axis regime representation
