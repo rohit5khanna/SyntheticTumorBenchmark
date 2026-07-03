@@ -42,6 +42,7 @@ def write_report(path: Path, payload: dict) -> None:
         f"- Regime analysis: `{payload['outputs']['regime_analysis_dir']}`",
         f"- Case types: `{payload['outputs']['case_type_dir']}`",
         f"- Morphology/treatment: `{payload['outputs']['morphology_treatment_dir']}`",
+        f"- Exception cases: `{payload['outputs']['exception_case_dir']}`",
         f"- Figures: `{payload['outputs']['figure_dir']}`",
         "",
         "## Notes",
@@ -74,6 +75,7 @@ def main() -> None:
     parser.add_argument("--low_dice", type=float, default=0.70)
     parser.add_argument("--skip_descriptor_probe", action="store_true")
     parser.add_argument("--skip_regime_map", action="store_true")
+    parser.add_argument("--skip_exception_cases", action="store_true")
     parser.add_argument("--output_dir", type=str, required=True)
     args = parser.parse_args()
 
@@ -90,6 +92,7 @@ def main() -> None:
     morph_dir = out_root / "morphology_treatment"
     descriptor_dir = out_root / "descriptor_signal"
     regime_map_dir = out_root / "regime_map"
+    exception_dir = out_root / "exception_cases"
     fig_dir = out_root / "figures"
 
     python = sys.executable
@@ -195,6 +198,20 @@ def main() -> None:
             env=common_env,
         )
 
+    if not args.skip_exception_cases:
+        run_step(
+            [
+                python,
+                str(ROOT / "scripts" / "analyze_exception_cases.py"),
+                "--case_type_csv",
+                str(case_dir / "case_type_samples.csv"),
+                "--output_dir",
+                str(exception_dir),
+            ],
+            "exception-case audit",
+            env=common_env,
+        )
+
     run_step(
         [
             python,
@@ -227,6 +244,7 @@ def main() -> None:
             "morphology_treatment_dir": str(morph_dir.resolve()),
             "descriptor_signal_dir": str(descriptor_dir.resolve()) if not args.skip_descriptor_probe else None,
             "regime_map_dir": str(regime_map_dir.resolve()) if not args.skip_regime_map else None,
+            "exception_case_dir": str(exception_dir.resolve()) if not args.skip_exception_cases else None,
             "figure_dir": str(fig_dir.resolve()),
         },
     }

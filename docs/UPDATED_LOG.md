@@ -258,6 +258,61 @@ The intention is that after this sprint, the project should be in a stronger pos
 
 This sprint is not just about adding more experiments.
 
+## 2026-07-03: Exception-Case Audit Added To SRD Analysis Stack
+
+The next refinement layer in the SRD analysis was to stop looking only at average behavior and explicitly audit the cases that break the dominant regime story.
+
+This led to the addition of a dedicated **exception-case audit**.
+
+### Why this was needed
+
+By this stage, the analysis had already established several stable aggregate patterns:
+
+1. tier A behaves much more like a persistence-friendly region;
+2. tiers B and C are more favorable to learned corrections;
+3. recent growth, volume, treatment-at-input, and connected-component count repeatedly emerge as important descriptors;
+4. the two-axis activity/structure map provides a compact summary of descriptor-level regime position.
+
+However, aggregate summaries alone are not enough for a serious data analysis layer. The harder and more useful question is:
+
+- which cases break the story?
+
+That is where a more careful audit becomes valuable.
+
+### What the exception-case audit does
+
+The new audit constructs a case-type profile in the activity/structure regime plane and then flags cases that appear atypical in one or more ways:
+
+1. **rare-case exceptions**:
+   cases belonging to a very small case-type group;
+2. **quadrant mismatches**:
+   cases whose regime quadrant differs from the dominant quadrant of their case type, when that case type has a stable dominant quadrant;
+3. **centroid-overlap exceptions**:
+   cases that are closer in activity/structure space to another case-type centroid than to the centroid of their own assigned case type.
+
+This is useful because it converts “interesting anecdotes” into a reproducible and descriptor-aware exception analysis.
+
+### What this adds conceptually
+
+This exception-case layer sharpens the project in two ways:
+
+1. it tells us where the current descriptor story is strong;
+2. it also tells us where the current descriptor story is incomplete.
+
+That is important for the broader research goal, because a regime-conditioned forecasting method should not be built only around the average or dominant behavior. It should also be informed by the ambiguous and boundary cases where the regime structure is less clean.
+
+### Implementation note
+
+The SRD workflow now includes:
+
+- `scripts/analyze_exception_cases.py`
+
+and the consolidated runner:
+
+- `scripts/run_srd_regime_analysis.py`
+
+was extended so that this exception-case audit becomes part of the same reproducible analysis bundle.
+
 It is about:
 
 - deciding what the present evaluation framework can genuinely claim,
@@ -1851,3 +1906,170 @@ It is a data-focused refinement step meant to:
 - tighten the descriptor story,
 - identify the minimal useful descriptor core,
 - and prevent the analysis from turning into a diffuse feature collection.
+
+## 2026-07-03: Descriptor Redundancy Findings
+
+The redundancy audit now clarifies which forecast-origin descriptors are overlapping strongly and which remain meaningfully distinct.
+
+### 1. One temporal pair is clearly redundant
+
+Across both Pearson and Spearman summaries:
+
+- `n_sessions` and `followup_days`
+  - Pearson: `0.894`
+  - Spearman: `0.892`
+
+This is the only globally high-correlation pair that clearly exceeds the current redundancy threshold in both measures.
+
+Interpretation:
+
+- these two variables are largely encoding the same history-length signal;
+- we do not need both in the final core descriptor set.
+
+Preferred choice:
+
+- keep `followup_days` if we want a continuous historical-span variable;
+- or keep `n_sessions` if we want a simpler discrete count variable.
+
+At the current stage, `followup_days` is likely the more interpretable continuous descriptor, while `n_sessions` can be treated as secondary or optional.
+
+### 2. Volume, recent growth, and component count are related, but not redundant
+
+Important correlations:
+
+- `input_volume_vox` vs `recent_relative_growth`
+  - Pearson: `0.624`
+  - Spearman: `0.790`
+
+- `input_volume_vox` vs `input_connected_component_count`
+  - Pearson: `0.532`
+  - Spearman: `0.705`
+
+- `recent_relative_growth` vs `input_connected_component_count`
+  - Pearson: `0.416`
+  - Spearman: `0.511`
+
+Interpretation:
+
+- larger tumors tend to grow more and also tend to have more components;
+- but these relationships are not so extreme that the descriptors collapse into one variable overall;
+- this supports keeping:
+  - `input_volume_vox`,
+  - `recent_relative_growth`,
+  - `input_connected_component_count`
+  as distinct descriptors for now.
+
+This is especially important because the earlier feature-importance analyses suggested that these three variables play different roles:
+
+- activity,
+- burden,
+- structural difficulty.
+
+The redundancy audit supports that separation rather than undermining it.
+
+### 3. Treatment is related to activity and burden, but still distinct
+
+Notable correlations:
+
+- `recent_relative_growth` vs `treated_at_input`
+  - Pearson: `-0.553`
+  - Spearman: `-0.480`
+
+- `input_volume_vox` vs `treated_at_input`
+  - Pearson: `-0.402`
+  - Spearman: `-0.538`
+
+Interpretation:
+
+- treated-at-input is associated with smaller and less active tumors;
+- but the correlation is moderate rather than overwhelming;
+- this means `treated_at_input` is not just a noisy proxy for size or recent growth.
+
+That is consistent with the earlier stratified and ablation analyses, where treatment repeatedly acted as a stabilizing descriptor in its own right.
+
+### 4. `delta_days` is not redundant with the broader temporal-history descriptors
+
+Important comparison:
+
+- `delta_days` vs `mean_interval_days`
+  - Pearson: `0.266`
+  - Spearman: `0.234`
+
+Interpretation:
+
+- the immediate forecast gap (`delta_days`) is not simply the same as the patient’s average sampling interval;
+- this is useful, because `delta_days` showed strong regime- and horizon-specific importance in the stratified analyses;
+- we should therefore keep `delta_days` as a core descriptor and not replace it with broader temporal-history variables.
+
+### 5. Morphology redundancy is regime-dependent
+
+Overall, morphology descriptors are not strongly redundant.
+
+But tier-level summaries show something important:
+
+- tier `A` top pair:
+  - `input_compactness_proxy` vs `input_connected_component_count`
+  - correlation: `-0.949`
+
+Interpretation:
+
+- in tier `A`, compactness and component count are almost mirror descriptors of the same simple structural phenomenon;
+- in tiers `B` and `C`, the strongest pair shifts away from this and the overall morphology space appears more mixed.
+
+This means:
+
+- morphology redundancy is not uniform across regimes;
+- in the persistence regime, we may not need both compactness and component count;
+- in the more heterogeneous regimes, keeping both may still be defensible.
+
+### 6. Horizon-level redundancy is relatively stable
+
+Across horizons:
+
+- the dominant redundant pair remains `n_sessions` vs `followup_days`
+- mean absolute correlation stays fairly stable (`~0.268-0.273`)
+
+Interpretation:
+
+- the descriptor dependency structure does not change dramatically by horizon at the broad level;
+- the major redundancy problem is historical-span duplication, not horizon-specific collapse.
+
+### 7. Refined core descriptor set
+
+Based on:
+
+- pooled importance,
+- stratified importance,
+- ablation,
+- regime-map structure,
+- and redundancy,
+
+the current best **core forecast-origin descriptor set** is:
+
+1. `treated_at_input`
+2. `delta_days`
+3. `recent_relative_growth`
+4. `input_volume_vox`
+5. `input_connected_component_count`
+
+### 8. Secondary descriptors
+
+The following are still useful, but currently look more secondary or context-dependent:
+
+- `input_compactness_proxy`
+- `input_elongation_ratio`
+- `followup_days` or `n_sessions` (choose one, not both)
+- `mean_interval_days`
+
+### Main takeaway
+
+The descriptor story has now been tightened significantly.
+
+We do **not** have one giant redundant feature set.
+We have:
+
+- one clearly redundant temporal-history pair,
+- one regime-dependent morphology overlap,
+- and a small core set of descriptors that remain meaningfully distinct.
+
+This is a strong result for the analysis sprint because it means the regime characterization framework can now be based on a compact, defensible descriptor set rather than on an overly broad list of candidate variables.
