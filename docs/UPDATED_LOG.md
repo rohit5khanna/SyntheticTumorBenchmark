@@ -1618,3 +1618,236 @@ At that point, we will be in a much stronger position to decide whether a later 
 
 - one compact descriptor set for all cases,
 - or different conditioning logic in different regions of the regime space.
+
+## 2026-07-03: Stratified Descriptor Findings
+
+The stratified descriptor audit now provides a much more rigorous view of which forecast-origin descriptors are stable and which are regime-specific.
+
+## Important caution before interpretation
+
+Some strata are:
+
+- small,
+- class-imbalanced,
+- or skipped entirely because one class is nearly absent.
+
+So the strongest conclusions should be drawn from:
+
+- overall strata,
+- the tier-wise `resunet_beats_locf` task,
+- and the horizon-wise `target_wins_vs_both_easy` task
+
+rather than from the sparsest `both_hard` splits.
+
+### 1. The descriptor story is real, but not uniform across all strata
+
+Overall summaries remain strong:
+
+- `resunet_beats_locf`
+  - ROC-AUC: `0.756`
+  - top feature: `recent_relative_growth`
+
+- `target_wins_vs_both_easy`
+  - ROC-AUC: `0.884`
+  - top feature: `treated_at_input`
+  - top ablation feature: `input_volume_vox`
+
+- `both_hard_vs_both_easy`
+  - ROC-AUC: `0.776`
+  - top feature: `input_connected_component_count`
+  - top ablation feature: `input_connected_component_count`
+
+Interpretation:
+
+- the pooled results were not misleading in a trivial way;
+- the three core descriptor families remain visible:
+  - activity / change,
+  - treatment/stabilization,
+  - structural complexity.
+
+### 2. Within tier `A`, treatment dominates the rare learned-vs-persistence differences
+
+For `resunet_beats_locf` in tier `A`:
+
+- top feature: `treated_at_input`
+- top ablation feature: `treated_at_input`
+- ROC-AUC: `0.878`
+
+Interpretation:
+
+- once we condition on being inside the persistence regime, the remaining distinction is strongly tied to treatment state;
+- this is consistent with tier `A` functioning as a low-activity stabilization regime rather than a generic low-difficulty group.
+
+### 3. Within tiers `B` and `C`, time-to-target becomes much more important
+
+For `resunet_beats_locf`:
+
+- tier `B`
+  - top feature: `delta_days`
+  - top ablation feature: `delta_days`
+  - ROC-AUC: `0.881`
+
+- tier `C`
+  - top feature: `delta_days`
+  - top ablation feature: `delta_days`
+  - ROC-AUC: `0.957`
+
+Interpretation:
+
+- after moving into the non-stable regimes, the immediate temporal gap to the target becomes a major differentiator;
+- this is a stronger and more precise conclusion than the earlier pooled horizon story;
+- it suggests that in active or aggressive cases, "how far ahead the next step is" matters more than in the stability regime.
+
+### 4. The drivers of learned advantage are different across tiers
+
+Tier-wise logistic coefficients for `resunet_beats_locf` indicate:
+
+- tier `A`
+  - treatment and history-related features matter most
+
+- tier `B`
+  - `delta_days`, `input_volume_vox`, and `input_elongation_ratio` are strongest
+
+- tier `C`
+  - `delta_days`, `treated_at_input`, and `recent_relative_growth` are strongest
+
+Interpretation:
+
+- there is no single universal descriptor ordering that explains all tiers equally well;
+- the descriptor set seems stable, but the **relative importance** of descriptors changes by regime;
+- this is a strong argument against treating all tumor cases as one uniform forecasting problem.
+
+### 5. Horizon-specific ablations show different short-horizon mechanisms
+
+For `target_wins_vs_both_easy`:
+
+#### Horizon 1
+
+- strongest ablation feature: `delta_days`
+- ROC-AUC drop from removing it: `0.123`
+
+Interpretation:
+
+- the immediate next-step distinction between learned-win and both-easy cases is driven most strongly by how far away the next scan is;
+- this is an important refinement of the earlier "short horizon" story.
+
+#### Horizon 2
+
+- strongest ablation feature: `treated_at_input`
+- ROC-AUC drop: `0.013`
+
+Interpretation:
+
+- horizon `2` is the most easily separable overall (`ROC-AUC ~ 0.986`);
+- the problem may already be so separable in this stratum that no single feature removal causes a very large drop;
+- treatment still appears as the most fragile feature here, but the margin is much smaller.
+
+#### Horizon 3
+
+- strongest ablation feature: `treated_at_input`
+- ROC-AUC drop: `0.104`
+
+Interpretation:
+
+- at the farthest tested short horizon, treatment state again becomes the most decisive separator between learned-win and both-easy cases;
+- this suggests that treatment may increasingly dominate regime separation once the forecast extends beyond the immediate step.
+
+### 6. A refined descriptor picture is emerging
+
+The stratified analysis suggests the descriptor space should not be summarized too crudely.
+
+The most stable and reusable descriptors now appear to be:
+
+- `treated_at_input`
+- `delta_days`
+- `recent_relative_growth`
+- `input_volume_vox`
+- `input_connected_component_count`
+
+But their role changes by setting:
+
+- `treated_at_input`
+  - strongest in tier `A`
+  - strongest at horizons `2` and `3` for `target_wins_vs_both_easy`
+
+- `delta_days`
+  - strongest in tiers `B` and `C`
+  - strongest at horizon `1`
+
+- `recent_relative_growth`
+  - strongest pooled activity descriptor
+  - especially relevant in aggressive settings
+
+- `input_volume_vox`
+  - strong global separator between learned-win and easy cases
+  - especially important in tier `B`
+
+- `input_connected_component_count`
+  - most reliable marker of structural hardness overall
+
+### 7. What this changes in our understanding
+
+The earlier pooled descriptor story can now be refined as follows:
+
+1. There is a stable core descriptor set.
+2. The same descriptors do not have the same importance in every tier or horizon.
+3. The forecasting problem is therefore not only regime-dependent, but **descriptor-hierarchy dependent** across regimes.
+
+That is a stronger and more precise statement than saying merely that different tiers behave differently.
+
+### Immediate implication for the data-analysis sprint
+
+The current sprint should continue emphasizing:
+
+- descriptor stability,
+- descriptor hierarchy by regime,
+- and which forecast-origin variables survive ablation.
+
+The strongest current data-analysis contribution is moving toward:
+
+- a regime characterization framework based on forecast-origin descriptors,
+
+not merely a tiered synthetic benchmark.
+
+## 2026-07-03: Descriptor Redundancy Audit Added
+
+To refine the descriptor set further, a redundancy/dependency audit has now been added:
+
+- `scripts/analyze_descriptor_redundancy.py`
+
+### Purpose
+
+The project now has a small set of promising forecast-origin descriptors, but before freezing them as the core regime characterization set, we need to know:
+
+1. which descriptors are genuinely distinct,
+2. which are mostly proxies for each other,
+3. and whether redundancy structure changes by tier or horizon.
+
+### What the audit computes
+
+Using the forecast-origin descriptor set, the script exports:
+
+- feature summary table
+- Pearson correlation matrix
+- Spearman correlation matrix
+- ranked pairwise correlation tables
+- tier-level correlation summary
+- horizon-level correlation summary
+- high-correlation pair lists by tier and horizon
+
+### Why this matters
+
+A cleaner descriptor set will help the project in two ways:
+
+1. it makes the regime-analysis section more rigorous by showing that the chosen descriptors are not arbitrary duplicates;
+2. it reduces future ambiguity if we later encode the regime state into a forecasting method.
+
+### Current role in the sprint
+
+This remains fully aligned with the July 5 analysis sprint.
+
+It is a data-focused refinement step meant to:
+
+- tighten the descriptor story,
+- identify the minimal useful descriptor core,
+- and prevent the analysis from turning into a diffuse feature collection.
