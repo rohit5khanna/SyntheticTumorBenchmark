@@ -1439,3 +1439,182 @@ This keeps the SRD artifact bundle aligned with the current research direction:
 - case-type summaries
 - descriptor signal
 - and now an explicit two-axis regime representation
+
+## 2026-07-03: First Two-Axis Regime-Map Findings
+
+The first regime-map outputs now give a much clearer structure to the SRD case space.
+
+### Score summaries by case type
+
+Mean scores:
+
+- `target_wins`
+  - activity: `0.484`
+  - structure: `0.169`
+
+- `both_hard`
+  - activity: `0.073`
+  - structure: `0.162`
+
+- `both_easy`
+  - activity: `-0.321`
+  - structure: `-0.158`
+
+- `close_mixed`
+  - activity: `-0.002`
+  - structure: `0.018`
+
+Interpretation:
+
+- `target_wins` are primarily distinguished by **high activity**, not by extreme structure alone.
+- `both_easy` are low on both axes, which is exactly what we would want from a persistence-sufficient regime.
+- `both_hard` are not as active on average as `target_wins`, but they remain structurally elevated.
+- `close_mixed` sits near the origin, which is consistent with cases that are ambiguous or only weakly separated.
+
+### Quadrants by case type
+
+The most important result here is:
+
+- `target_wins`
+  - `highA_highS`: `28 / 35` (`80.0%`)
+
+while:
+
+- `both_easy`
+  - `lowA_lowS`: `30 / 59` (`50.8%`)
+
+Interpretation:
+
+- clear learned-model wins are concentrated in the quadrant with both high activity and high structure;
+- easy persistence-sufficient cases are concentrated in the low-activity / low-structure quadrant;
+- this is the cleanest regime-map separation obtained so far.
+
+`both_hard` are split much more evenly across:
+
+- `highA_highS`
+- `highA_lowS`
+- `lowA_highS`
+
+Interpretation:
+
+- being hard for both models does not require the full high-activity/high-structure combination;
+- it can arise from either activity-driven difficulty or structure-driven difficulty;
+- this reinforces the idea that "learned advantage" and "intrinsic hardness" are related but not identical phenomena.
+
+### Quadrants by tier
+
+Tier-to-quadrant structure is also informative:
+
+- `A`
+  - mostly `lowA_lowS` (`45.8%`)
+  - plus a substantial `lowA_highS` share (`27.1%`)
+
+- `B`
+  - much more mixed across all four quadrants
+
+- `C`
+  - overwhelmingly `highA_highS` (`72.2%`)
+
+Interpretation:
+
+- Tier `A` remains the main persistence regime, but not because it is uniformly trivial; it includes some structurally elevated cases with low activity.
+- Tier `B` behaves like a true mixed regime in descriptor space, which supports its role as a compromise/intermediate regime rather than simply a middle point on a ladder.
+- Tier `C` is strongly concentrated in the high-activity/high-structure region, which explains why it is the richest source of learned-model gains.
+
+### Main research takeaway
+
+The two-axis regime map supports a stronger descriptor-based interpretation of short-horizon forecasting:
+
+1. **Low activity + low structure**
+   - persistence is usually sufficient
+   - many `both_easy` cases live here
+
+2. **High activity + high structure**
+   - learned correction is most likely to help
+   - most `target_wins` live here
+
+3. **Intermediate or one-axis-high regions**
+   - cases are more mixed or hard
+   - this is where ambiguity and model failure are more likely
+
+This is useful because it suggests the next methodological step should not be a single hard tier label, but a descriptor-driven conditioning signal built from:
+
+- activity state
+- structure state
+
+### Immediate next step
+
+The next research step should be to formalize this regime state in one of two ways:
+
+1. a compact two-dimensional conditioning vector
+2. a four-quadrant discrete regime indicator derived from the two scores
+
+Then we can test whether conditioning a forecast model on this state improves:
+
+- stability in mixed cases
+- gains in high-activity/high-structure cases
+- or calibration of when to trust persistence versus learned correction
+
+## 2026-07-03: Stratified Descriptor Audit Added
+
+To stay aligned with the current July 5 analysis sprint, the next step has been kept on the data-analysis side rather than moving into model design.
+
+A new script has been added:
+
+- `scripts/analyze_descriptor_signal_stratified.py`
+
+### Purpose
+
+The first descriptor-signal probe was useful, but still pooled the full SRD together.
+
+That is not enough if the project is really about regime-dependent forecasting behavior.
+
+The stratified audit is designed to answer:
+
+1. which forecast-origin descriptors matter by tier?
+2. which descriptors matter by horizon?
+3. which features are genuinely necessary, rather than only correlated with the others?
+
+### What the new script does
+
+For each binary task:
+
+- `resunet_beats_locf`
+- `target_wins_vs_both_easy`
+- `both_hard_vs_both_easy`
+
+the script evaluates:
+
+- overall
+- by tier
+- by horizon
+
+using:
+
+- logistic-regression importance
+- leave-one-feature-out ablation importance
+
+### Why this matters
+
+This is a better fit for the current sprint than immediately implementing a new conditioned model, because it directly strengthens the data/regime analysis.
+
+In particular, it helps answer whether:
+
+- the same descriptors matter in all tiers;
+- immediate and slightly longer short horizons are governed by the same signals;
+- and which forecast-origin variables survive ablation as indispensable descriptors.
+
+### Intended research value
+
+If the descriptor story remains stable under:
+
+- stratification by tier,
+- stratification by horizon,
+- and ablation,
+
+then the regime analysis becomes much more robust.
+
+At that point, we will be in a much stronger position to decide whether a later regime-conditioned forecasting method should use:
+
+- one compact descriptor set for all cases,
+- or different conditioning logic in different regions of the regime space.
