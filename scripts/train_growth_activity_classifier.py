@@ -207,7 +207,7 @@ def _select_threshold(sk, y_val: np.ndarray, probs_val: np.ndarray, objective: s
 def _build_split_tables(args: argparse.Namespace) -> Dict[str, pd.DataFrame]:
     out = {}
     for split in ["train", "val", "test"]:
-        out[split] = build_continuation_table(
+        df = build_continuation_table(
             dataset_root=Path(args.dataset_root),
             split=split,
             fit_sessions=args.fit_sessions,
@@ -215,7 +215,14 @@ def _build_split_tables(args: argparse.Namespace) -> Dict[str, pd.DataFrame]:
             allowed_tiers=args.allowed_tiers,
             min_growth_vox=args.min_growth_vox,
         )
-        out[split]["future_growth_active_label"] = out[split]["future_growth_active"].astype(int)
+        if args.subset == "previous_active":
+            df = df[df["prev_growth_active"].astype(bool)].copy()
+        elif args.subset == "previous_inactive":
+            df = df[~df["prev_growth_active"].astype(bool)].copy()
+        elif args.subset != "all":
+            raise ValueError(f"Unsupported subset: {args.subset}")
+        df["future_growth_active_label"] = df["future_growth_active"].astype(int)
+        out[split] = df
     return out
 
 
@@ -297,6 +304,17 @@ def main() -> None:
     parser.add_argument("--allowed_tiers", type=str, default=None)
     parser.add_argument("--min_growth_vox", type=int, default=250)
     parser.add_argument("--objective", type=str, default="balanced_accuracy", choices=["balanced_accuracy", "f1", "accuracy"])
+    parser.add_argument(
+        "--subset",
+        type=str,
+        default="all",
+        choices=["all", "previous_active", "previous_inactive"],
+        help=(
+            "Restrict samples before training/evaluation. "
+            "`previous_active` tests continuation versus cessation; "
+            "`previous_inactive` tests stable versus newly active."
+        ),
+    )
     parser.add_argument("--include_tier", action="store_true")
     parser.add_argument("--include_horizon", action="store_true")
     parser.add_argument("--seed", type=int, default=42)
@@ -311,6 +329,16 @@ def main() -> None:
     train = split_tables["train"]
     val = split_tables["val"]
     test = split_tables["test"]
+
+    for split_name, df in [("train", train), ("val", val), ("test", test)]:
+        if df.empty:
+            raise ValueError(f"No samples remain in {split_name} after subset={args.subset}.")
+        class_count = df["future_growth_active_label"].nunique(dropna=True)
+        if class_count < 2:
+            raise ValueError(
+                f"{split_name} has only one target class after subset={args.subset}; "
+                "classification metrics would not be meaningful."
+            )
 
     numeric, categorical = _feature_columns(include_tier=args.include_tier, include_horizon=args.include_horizon)
     numeric, categorical = _available_features(train, numeric, categorical)
@@ -397,6 +425,7 @@ def main() -> None:
     report = {
         "dataset_root": args.dataset_root,
         "min_growth_vox": args.min_growth_vox,
+        "subset": args.subset,
         "objective": args.objective,
         "include_tier": bool(args.include_tier),
         "include_horizon": bool(args.include_horizon),
