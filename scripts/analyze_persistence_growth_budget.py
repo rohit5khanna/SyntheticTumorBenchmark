@@ -21,6 +21,17 @@ from baselines.tasks import build_samples_for_split, infer_tier_from_patient_id,
 KEY_COLS = ["patient_id", "input_idx", "target_idx", "horizon", "delta_days"]
 
 
+def _parse_float_list(payload: str | None) -> List[float]:
+    if payload is None:
+        return []
+    out = []
+    for item in payload.split(","):
+        item = item.strip()
+        if item:
+            out.append(float(item))
+    return out
+
+
 def _standardize_label(arr: np.ndarray) -> np.ndarray:
     arr = np.asarray(arr, dtype=np.float32)
     if arr.ndim == 5 and arr.shape[1] == 1:
@@ -135,18 +146,51 @@ def _absolute_growth_bins(df: pd.DataFrame) -> tuple[pd.Series, Dict]:
     }
 
 
-def _budget_values(labels: np.ndarray, input_idx: int, input_mask: np.ndarray, true_growth_count: int) -> Dict[str, int]:
+def _safe_policy_float(value: float) -> str:
+    text = f"{value:g}"
+    return text.replace("-", "m").replace(".", "p")
+
+
+def _budget_values(
+    labels: np.ndarray,
+    input_idx: int,
+    input_mask: np.ndarray,
+    true_growth_count: int,
+    previous_growth_scales: Iterable[float],
+    input_cap_fracs: Iterable[float],
+    zero_prev_thresholds: Iterable[float],
+) -> Dict[str, int]:
     prev_growth = 0
     if input_idx > 0:
         prev_mask = (labels[input_idx - 1] > 0)[0]
         prev_growth = int((input_mask & ~prev_mask).sum())
     candidate_count = int((~input_mask).sum())
-    return {
+    input_volume = int(input_mask.sum())
+
+    budgets = {
         "oracle_true_growth_volume": int(true_growth_count),
         "previous_growth_volume": int(prev_growth),
         "one_pct_candidates": int(max(1, round(0.01 * candidate_count))) if true_growth_count > 0 else 0,
         "five_pct_candidates": int(max(1, round(0.05 * candidate_count))) if true_growth_count > 0 else 0,
     }
+
+    for scale in previous_growth_scales:
+        scale_label = _safe_policy_float(scale)
+        scaled = int(max(0, round(prev_growth * scale)))
+        budgets[f"prev_growth_x{scale_label}"] = scaled
+
+        for cap_frac in input_cap_fracs:
+            cap_label = _safe_policy_float(cap_frac)
+            cap = int(max(0, round(input_volume * cap_frac)))
+            budgets[f"prev_growth_x{scale_label}_cap_input_{cap_label}"] = min(scaled, cap)
+
+        for threshold in zero_prev_thresholds:
+            threshold_label = _safe_policy_float(threshold)
+            budgets[f"prev_growth_x{scale_label}_zero_if_prev_le_{threshold_label}"] = (
+                0 if prev_growth <= threshold else scaled
+            )
+
+    return budgets
 
 
 def _add_rows_for_score(
@@ -184,6 +228,9 @@ def compute_budget_predictions(
     baseline_output_dir: Path,
     methods: Iterable[str],
     device: str,
+    previous_growth_scales: Iterable[float],
+    input_cap_fracs: Iterable[float],
+    zero_prev_thresholds: Iterable[float],
 ) -> tuple[pd.DataFrame, Dict]:
     samples = build_samples_for_split(dataset_root, split, fit_sessions, horizons, allowed_tiers=allowed_tiers)
     label_cache: Dict[str, np.ndarray] = {}
@@ -216,7 +263,15 @@ def compute_budget_predictions(
             "locf_dice": locf_dice,
         }
         base_rows.append(sample_meta)
-        budgets = _budget_values(labels, s.input_idx, input_mask, int(growth.sum()))
+        budgets = _budget_values(
+            labels=labels,
+            input_idx=s.input_idx,
+            input_mask=input_mask,
+            true_growth_count=int(growth.sum()),
+            previous_growth_scales=previous_growth_scales,
+            input_cap_fracs=input_cap_fracs,
+            zero_prev_thresholds=zero_prev_thresholds,
+        )
         distance_score = _distance_to_input_score(input_mask)
         if distance_score is not None:
             _add_rows_for_score(rows, "distance_to_input_mask", distance_score, sample_meta, input_mask, target_mask, budgets)
@@ -265,7 +320,15 @@ def compute_budget_predictions(
                     "relative_new_growth": int(growth.sum()) / max(1, int(input_mask.sum())),
                     "locf_dice": locf_dice,
                 }
-                budgets = _budget_values(labels, s.input_idx, input_mask, int(growth.sum()))
+                budgets = _budget_values(
+                    labels=labels,
+                    input_idx=s.input_idx,
+                    input_mask=input_mask,
+                    true_growth_count=int(growth.sum()),
+                    previous_growth_scales=previous_growth_scales,
+                    input_cap_fracs=input_cap_fracs,
+                    zero_prev_thresholds=zero_prev_thresholds,
+                )
                 x, _, _ = ds[i]
                 with torch.no_grad():
                     logits = model(x[None].to(dev))
@@ -329,6 +392,17 @@ def summarize(df: pd.DataFrame, group_cols: List[str]) -> pd.DataFrame:
     )
 
 
+def summarize_best_policies(df: pd.DataFrame, group_cols: List[str], top_k: int = 10) -> pd.DataFrame:
+    summary = summarize(df, group_cols + ["score_source", "budget_policy"])
+    if summary.empty:
+        return summary
+    sort_cols = group_cols + ["mean_gap_vs_locf", "win_rate_vs_locf", "mean_dice"]
+    ranked = summary.sort_values(sort_cols, ascending=[True] * len(group_cols) + [False, False, False])
+    if not group_cols:
+        return ranked.head(top_k).reset_index(drop=True)
+    return ranked.groupby(group_cols, dropna=False, observed=True).head(top_k).reset_index(drop=True)
+
+
 def write_report(path: Path, thresholds: Dict, overall: pd.DataFrame, by_growth: pd.DataFrame) -> None:
     with path.open("w", encoding="utf-8") as f:
         f.write("# Persistence Plus Ranked-Growth Budget Analysis\n\n")
@@ -360,12 +434,33 @@ def main() -> None:
     parser.add_argument("--baseline_output_dir", type=str, required=True)
     parser.add_argument("--methods", type=str, default="unet_image_mask,resunet_image_mask")
     parser.add_argument("--device", type=str, default="auto")
+    parser.add_argument(
+        "--previous_growth_scales",
+        type=str,
+        default="0.25,0.5,0.75,1.0,1.25,1.5",
+        help="Comma-separated multipliers for previous observed growth volume.",
+    )
+    parser.add_argument(
+        "--input_cap_fracs",
+        type=str,
+        default="0.01,0.02,0.05",
+        help="Comma-separated input-volume fractions used to cap scaled previous-growth budgets.",
+    )
+    parser.add_argument(
+        "--zero_prev_thresholds",
+        type=str,
+        default="0",
+        help="Comma-separated thresholds; scaled previous-growth budget is set to zero when previous growth <= threshold.",
+    )
     parser.add_argument("--output_dir", type=str, required=True)
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     methods = [m.strip() for m in args.methods.split(",") if m.strip()]
+    previous_growth_scales = _parse_float_list(args.previous_growth_scales)
+    input_cap_fracs = _parse_float_list(args.input_cap_fracs)
+    zero_prev_thresholds = _parse_float_list(args.zero_prev_thresholds)
 
     pred_df, thresholds = compute_budget_predictions(
         dataset_root=Path(args.dataset_root),
@@ -376,18 +471,25 @@ def main() -> None:
         baseline_output_dir=Path(args.baseline_output_dir),
         methods=methods,
         device=args.device,
+        previous_growth_scales=previous_growth_scales,
+        input_cap_fracs=input_cap_fracs,
+        zero_prev_thresholds=zero_prev_thresholds,
     )
 
     overall = summarize(pred_df, ["score_source", "budget_policy"])
     by_growth = summarize(pred_df, ["score_source", "budget_policy", "absolute_growth_bin"])
     by_tier_growth = summarize(pred_df, ["score_source", "budget_policy", "tier", "absolute_growth_bin"])
     by_horizon_growth = summarize(pred_df, ["score_source", "budget_policy", "horizon", "absolute_growth_bin"])
+    best_overall = summarize_best_policies(pred_df, [], top_k=20)
+    best_by_growth = summarize_best_policies(pred_df, ["absolute_growth_bin"], top_k=10)
 
     pred_df.to_csv(output_dir / "persistence_growth_budget_samples.csv", index=False)
     overall.to_csv(output_dir / "persistence_growth_budget_overall.csv", index=False)
     by_growth.to_csv(output_dir / "persistence_growth_budget_by_absolute_growth_bin.csv", index=False)
     by_tier_growth.to_csv(output_dir / "persistence_growth_budget_by_tier_growth_bin.csv", index=False)
     by_horizon_growth.to_csv(output_dir / "persistence_growth_budget_by_horizon_growth_bin.csv", index=False)
+    best_overall.to_csv(output_dir / "persistence_growth_budget_best_overall.csv", index=False)
+    best_by_growth.to_csv(output_dir / "persistence_growth_budget_best_by_absolute_growth_bin.csv", index=False)
     write_report(output_dir / "persistence_growth_budget_report.md", thresholds, overall, by_growth)
 
     print(
@@ -395,6 +497,9 @@ def main() -> None:
             {
                 "n_rows": int(len(pred_df)),
                 "methods": methods,
+                "previous_growth_scales": previous_growth_scales,
+                "input_cap_fracs": input_cap_fracs,
+                "zero_prev_thresholds": zero_prev_thresholds,
                 "absolute_growth_thresholds": thresholds,
                 "output_dir": str(output_dir),
             },
