@@ -294,6 +294,24 @@ def _checkpoint_specs(output_dir: Path, methods: Iterable[str]) -> Dict[str, Dic
     return specs
 
 
+def summarize_ranking(ranking: pd.DataFrame, group_cols: List[str]) -> pd.DataFrame:
+    if ranking.empty:
+        return pd.DataFrame()
+    return (
+        ranking.groupby(group_cols, dropna=False)
+        .agg(
+            count=("growth_average_precision", "size"),
+            mean_ap=("growth_average_precision", "mean"),
+            mean_recall_at_growth_volume=("growth_recall_at_growth_volume", "mean"),
+            mean_recall_at_1pct=("growth_recall_at_1pct_candidates", "mean"),
+            mean_recall_at_5pct=("growth_recall_at_5pct_candidates", "mean"),
+            mean_growth_volume_vox=("growth_volume_vox", "mean"),
+        )
+        .reset_index()
+        .sort_values(group_cols)
+    )
+
+
 def compute_ranking_metrics(
     dataset_root: Path,
     split: str,
@@ -418,6 +436,9 @@ def write_report(
     dice_by_growth: pd.DataFrame,
     pairwise: pd.DataFrame,
     ranking: pd.DataFrame,
+    ranking_by_horizon: pd.DataFrame,
+    ranking_by_growth: pd.DataFrame,
+    ranking_by_tier: pd.DataFrame,
 ) -> None:
     with path.open("w", encoding="utf-8") as f:
         f.write("# Growth-Aware Forecast Evaluation\n\n")
@@ -441,18 +462,11 @@ def write_report(
         if ranking.empty:
             f.write("Ranking metrics were not computed because no accessible model checkpoints were found.")
         else:
-            rank_summary = (
-                ranking.groupby(["method", "horizon"])
-                .agg(
-                    count=("growth_average_precision", "size"),
-                    mean_ap=("growth_average_precision", "mean"),
-                    mean_recall_at_growth_volume=("growth_recall_at_growth_volume", "mean"),
-                    mean_recall_at_1pct=("growth_recall_at_1pct_candidates", "mean"),
-                    mean_recall_at_5pct=("growth_recall_at_5pct_candidates", "mean"),
-                )
-                .reset_index()
-            )
-            f.write(rank_summary.to_markdown(index=False))
+            f.write(ranking_by_horizon.to_markdown(index=False))
+            f.write("\n\n## Forward-Growth Ranking By New-Growth Bin\n\n")
+            f.write(ranking_by_growth.to_markdown(index=False))
+            f.write("\n\n## Forward-Growth Ranking By Tier\n\n")
+            f.write(ranking_by_tier.to_markdown(index=False))
         f.write("\n")
 
 
@@ -506,13 +520,41 @@ def main() -> None:
             device=args.device,
         )
     )
+    if not ranking.empty:
+        rank_feature_cols = KEY_COLS + [
+            "new_growth_bin",
+            "abs_change_bin",
+            "net_growth_bin",
+            "relative_new_growth",
+            "relative_abs_change",
+        ]
+        ranking = ranking.merge(features[rank_feature_cols], on=KEY_COLS, how="left")
+        ranking_by_horizon = summarize_ranking(ranking, ["ranking_source", "method", "horizon"])
+        ranking_by_growth = summarize_ranking(ranking, ["ranking_source", "method", "new_growth_bin"])
+        ranking_by_tier = summarize_ranking(ranking, ["ranking_source", "method", "tier"])
+    else:
+        ranking_by_horizon = pd.DataFrame()
+        ranking_by_growth = pd.DataFrame()
+        ranking_by_tier = pd.DataFrame()
 
     features.to_csv(output_dir / "growth_sample_features.csv", index=False)
     dice_by_growth.to_csv(output_dir / "dice_by_new_growth_bin.csv", index=False)
     pairwise.to_csv(output_dir / "model_gain_vs_locf_by_new_growth_bin.csv", index=False)
     if not ranking.empty:
         ranking.to_csv(output_dir / "growth_ranking_metrics.csv", index=False)
-    write_report(output_dir / "growth_aware_evaluation_report.md", features, dice_by_growth, pairwise, ranking)
+        ranking_by_horizon.to_csv(output_dir / "ranking_summary_by_horizon.csv", index=False)
+        ranking_by_growth.to_csv(output_dir / "ranking_summary_by_new_growth_bin.csv", index=False)
+        ranking_by_tier.to_csv(output_dir / "ranking_summary_by_tier.csv", index=False)
+    write_report(
+        output_dir / "growth_aware_evaluation_report.md",
+        features,
+        dice_by_growth,
+        pairwise,
+        ranking,
+        ranking_by_horizon,
+        ranking_by_growth,
+        ranking_by_tier,
+    )
 
     print(
         json.dumps(
