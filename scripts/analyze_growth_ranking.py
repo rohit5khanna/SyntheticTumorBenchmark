@@ -61,6 +61,72 @@ def _recall_at_k(y_true: np.ndarray, score: np.ndarray, k: int) -> float:
     return float(y[order].sum() / positives)
 
 
+def _ranking_row(
+    method: str,
+    patient_id: str,
+    input_idx: int,
+    target_idx: int,
+    horizon: int,
+    delta_days: float,
+    tier: str,
+    y_true: np.ndarray,
+    score: np.ndarray | None,
+    source: str,
+) -> Dict:
+    y = np.asarray(y_true, dtype=np.uint8).reshape(-1)
+    candidate_count = int(len(y))
+    growth_count = int(y.sum())
+    k_growth = max(1, growth_count)
+    k_1pct = max(1, int(0.01 * candidate_count))
+    k_5pct = max(1, int(0.05 * candidate_count))
+
+    if growth_count == 0:
+        ap = float("nan")
+        recall_growth = float("nan")
+        recall_1pct = float("nan")
+        recall_5pct = float("nan")
+    elif score is None:
+        prevalence = growth_count / max(1, candidate_count)
+        ap = float(prevalence)
+        recall_growth = float(min(1.0, k_growth / max(1, candidate_count)))
+        recall_1pct = float(min(1.0, k_1pct / max(1, candidate_count)))
+        recall_5pct = float(min(1.0, k_5pct / max(1, candidate_count)))
+    else:
+        ap = _average_precision_binary(y, score)
+        recall_growth = _recall_at_k(y, score, k_growth)
+        recall_1pct = _recall_at_k(y, score, k_1pct)
+        recall_5pct = _recall_at_k(y, score, k_5pct)
+
+    return {
+        "method": method,
+        "ranking_source": source,
+        "patient_id": patient_id,
+        "input_idx": input_idx,
+        "target_idx": target_idx,
+        "horizon": horizon,
+        "delta_days": delta_days,
+        "tier": tier,
+        "growth_volume_vox": growth_count,
+        "candidate_vox": candidate_count,
+        "growth_average_precision": ap,
+        "growth_recall_at_growth_volume": recall_growth,
+        "growth_recall_at_1pct_candidates": recall_1pct,
+        "growth_recall_at_5pct_candidates": recall_5pct,
+    }
+
+
+def _distance_to_input_score(input_mask: np.ndarray) -> np.ndarray | None:
+    if int(input_mask.sum()) == 0:
+        return None
+    try:
+        from scipy.ndimage import distance_transform_edt
+    except Exception as e:
+        print(f"[WARN] Skipping distance-to-input ranking baseline because scipy is unavailable: {e}")
+        return None
+    dist = distance_transform_edt(~input_mask)
+    return -dist.astype(np.float32)
+
+
 def _load_per_sample(output_dir: Path, methods: Iterable[str]) -> pd.DataFrame:
     rows = []
     for method in methods:
@@ -238,9 +304,57 @@ def compute_ranking_metrics(
     methods: Iterable[str],
     device: str,
 ) -> pd.DataFrame:
+    samples = build_samples_for_split(dataset_root, split, fit_sessions, horizons, allowed_tiers=allowed_tiers)
+    label_cache: Dict[str, np.ndarray] = {}
+    rows = []
+
+    for s in samples:
+        if s.patient_id not in label_cache:
+            p = patient_paths(dataset_root, s.patient_id)
+            label_cache[s.patient_id] = _standardize_label(np.load(p["label"]))
+        labels = label_cache[s.patient_id]
+        input_mask = (labels[s.input_idx] > 0)[0]
+        target_mask = (labels[s.target_idx] > 0)[0]
+        growth = target_mask & ~input_mask
+        outside_input = ~input_mask
+        y = growth[outside_input]
+        tier = infer_tier_from_patient_id(s.patient_id)
+
+        rows.append(
+            _ranking_row(
+                method="random_prevalence",
+                patient_id=s.patient_id,
+                input_idx=s.input_idx,
+                target_idx=s.target_idx,
+                horizon=s.horizon,
+                delta_days=s.delta_days,
+                tier=tier,
+                y_true=y,
+                score=None,
+                source="reference",
+            )
+        )
+
+        distance_score_full = _distance_to_input_score(input_mask)
+        if distance_score_full is not None:
+            rows.append(
+                _ranking_row(
+                    method="distance_to_input_mask",
+                    patient_id=s.patient_id,
+                    input_idx=s.input_idx,
+                    target_idx=s.target_idx,
+                    horizon=s.horizon,
+                    delta_days=s.delta_days,
+                    tier=tier,
+                    y_true=y,
+                    score=distance_score_full[outside_input],
+                    source="reference",
+                )
+            )
+
     specs = _checkpoint_specs(output_dir, methods)
     if not specs:
-        return pd.DataFrame()
+        return pd.DataFrame(rows)
 
     try:
         import torch
@@ -248,11 +362,8 @@ def compute_ranking_metrics(
         from baselines.unet import _TorchForecastDataset, _build_torch_model
     except Exception as e:
         print(f"[WARN] Skipping ranking metrics because PyTorch/model code is unavailable: {e}")
-        return pd.DataFrame()
+        return pd.DataFrame(rows)
 
-    samples = build_samples_for_split(dataset_root, split, fit_sessions, horizons, allowed_tiers=allowed_tiers)
-    label_cache: Dict[str, np.ndarray] = {}
-    rows = []
     dev = torch.device("cuda" if device == "auto" and torch.cuda.is_available() else ("cpu" if device == "auto" else device))
 
     for method, spec in specs.items():
@@ -283,23 +394,19 @@ def compute_ranking_metrics(
 
             y = growth[outside_input]
             score = prob[outside_input]
-            growth_count = int(y.sum())
             rows.append(
-                {
-                    "method": method,
-                    "patient_id": s.patient_id,
-                    "input_idx": s.input_idx,
-                    "target_idx": s.target_idx,
-                    "horizon": s.horizon,
-                    "delta_days": s.delta_days,
-                    "tier": infer_tier_from_patient_id(s.patient_id),
-                    "growth_volume_vox": growth_count,
-                    "candidate_vox": int(outside_input.sum()),
-                    "growth_average_precision": _average_precision_binary(y, score),
-                    "growth_recall_at_growth_volume": _recall_at_k(y, score, max(1, growth_count)),
-                    "growth_recall_at_1pct_candidates": _recall_at_k(y, score, max(1, int(0.01 * len(y)))),
-                    "growth_recall_at_5pct_candidates": _recall_at_k(y, score, max(1, int(0.05 * len(y)))),
-                }
+                _ranking_row(
+                    method=method,
+                    patient_id=s.patient_id,
+                    input_idx=s.input_idx,
+                    target_idx=s.target_idx,
+                    horizon=s.horizon,
+                    delta_days=s.delta_days,
+                    tier=infer_tier_from_patient_id(s.patient_id),
+                    y_true=y,
+                    score=score,
+                    source="model",
+                )
             )
 
     return pd.DataFrame(rows)
