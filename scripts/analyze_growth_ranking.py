@@ -127,6 +127,31 @@ def _distance_to_input_score(input_mask: np.ndarray) -> np.ndarray | None:
     return -dist.astype(np.float32)
 
 
+def _rank_normalize_score(score: np.ndarray) -> np.ndarray:
+    s = np.asarray(score, dtype=np.float32).reshape(-1)
+    if len(s) <= 1:
+        return np.zeros_like(s, dtype=np.float32)
+    order = np.argsort(s, kind="mergesort")
+    ranks = np.empty_like(order, dtype=np.float32)
+    ranks[order] = np.arange(len(s), dtype=np.float32)
+    return ranks / float(len(s) - 1)
+
+
+def _parse_float_list(payload: str | None) -> List[float]:
+    if payload is None:
+        return []
+    out = []
+    for item in payload.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        value = float(item)
+        if value < 0.0 or value > 1.0:
+            raise ValueError("Hybrid alpha values must be between 0 and 1.")
+        out.append(value)
+    return sorted(set(out))
+
+
 def _load_per_sample(output_dir: Path, methods: Iterable[str]) -> pd.DataFrame:
     rows = []
     for method in methods:
@@ -321,10 +346,12 @@ def compute_ranking_metrics(
     output_dir: Path,
     methods: Iterable[str],
     device: str,
+    hybrid_alphas: Iterable[float],
 ) -> pd.DataFrame:
     samples = build_samples_for_split(dataset_root, split, fit_sessions, horizons, allowed_tiers=allowed_tiers)
     label_cache: Dict[str, np.ndarray] = {}
     rows = []
+    hybrid_alpha_l = [float(a) for a in hybrid_alphas]
 
     for s in samples:
         if s.patient_id not in label_cache:
@@ -412,6 +439,7 @@ def compute_ranking_metrics(
 
             y = growth[outside_input]
             score = prob[outside_input]
+            distance_score_full = _distance_to_input_score(input_mask)
             rows.append(
                 _ranking_row(
                     method=method,
@@ -426,6 +454,26 @@ def compute_ranking_metrics(
                     source="model",
                 )
             )
+            if distance_score_full is not None:
+                distance_score = distance_score_full[outside_input]
+                distance_rank = _rank_normalize_score(distance_score)
+                model_rank = _rank_normalize_score(score)
+                for alpha in hybrid_alpha_l:
+                    hybrid_score = (1.0 - alpha) * distance_rank + alpha * model_rank
+                    rows.append(
+                        _ranking_row(
+                            method=f"hybrid_distance_{method}_a{alpha:.2f}",
+                            patient_id=s.patient_id,
+                            input_idx=s.input_idx,
+                            target_idx=s.target_idx,
+                            horizon=s.horizon,
+                            delta_days=s.delta_days,
+                            tier=infer_tier_from_patient_id(s.patient_id),
+                            y_true=y,
+                            score=hybrid_score,
+                            source="hybrid",
+                        )
+                    )
 
     return pd.DataFrame(rows)
 
@@ -488,6 +536,12 @@ def main() -> None:
     )
     parser.add_argument("--device", type=str, default="auto")
     parser.add_argument("--skip_ranking", action="store_true")
+    parser.add_argument(
+        "--hybrid_alphas",
+        type=str,
+        default="0.25,0.50,0.75",
+        help="Comma-separated learned-score weights for hybrid distance/model ranking. Use an empty string to disable.",
+    )
     parser.add_argument("--output_dir", type=str, required=True)
     args = parser.parse_args()
 
@@ -506,6 +560,7 @@ def main() -> None:
     )
     per_sample = _load_per_sample(baseline_output_dir, methods)
     dice_by_growth, pairwise = summarize_dice_by_growth(per_sample, features)
+    hybrid_alphas = _parse_float_list(args.hybrid_alphas)
     ranking = (
         pd.DataFrame()
         if args.skip_ranking
@@ -518,6 +573,7 @@ def main() -> None:
             output_dir=baseline_output_dir,
             methods=methods,
             device=args.device,
+            hybrid_alphas=hybrid_alphas,
         )
     )
     if not ranking.empty:
