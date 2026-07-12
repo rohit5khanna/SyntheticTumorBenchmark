@@ -298,7 +298,7 @@ def summarize_ranking(ranking: pd.DataFrame, group_cols: List[str]) -> pd.DataFr
     if ranking.empty:
         return pd.DataFrame()
     return (
-        ranking.groupby(group_cols, dropna=False)
+        ranking.groupby(group_cols, dropna=False, observed=True)
         .agg(
             count=("growth_average_precision", "size"),
             mean_ap=("growth_average_precision", "mean"),
