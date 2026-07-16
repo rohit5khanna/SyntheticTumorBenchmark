@@ -31,7 +31,7 @@ def _standardize_label(arr: np.ndarray) -> np.ndarray:
     raise ValueError(f"Unsupported label shape: {arr.shape}")
 
 
-def parse_threshold_quantiles(payload: str) -> List[float]:
+def parse_threshold_values(payload: str) -> List[float]:
     vals = []
     for item in payload.split(","):
         item = item.strip()
@@ -39,7 +39,7 @@ def parse_threshold_quantiles(payload: str) -> List[float]:
             continue
         val = float(item)
         if val < 0.0 or val > 1.0:
-            raise ValueError("Threshold quantiles must be in [0, 1].")
+            raise ValueError("Threshold values must be in [0, 1].")
         vals.append(val)
     if not vals:
         raise ValueError("Need at least one threshold quantile.")
@@ -375,6 +375,188 @@ def apply_selected(payloads: List[dict], selected: pd.DataFrame) -> pd.DataFrame
     return pd.DataFrame(rows)
 
 
+def build_single_payload(
+    dataset_root: Path,
+    sample,
+    model,
+    ds,
+    sample_index: int,
+    dev,
+    split_name: str,
+    label_cache: Dict[str, np.ndarray],
+    calibrator=None,
+) -> dict:
+    labels = load_labels(dataset_root, sample.patient_id, label_cache)
+    input_mask = labels[sample.input_idx, 0] > 0
+    target_mask = labels[sample.target_idx, 0] > 0
+    outside = ~input_mask
+    growth = (target_mask & ~input_mask)[outside].astype(np.uint8)
+    model_score = model_probability(model, ds, sample_index, dev)
+    distance_score = distance_rank_score(input_mask)
+    context = sample_context_features(sample, labels)
+    context.update({"delta_days": float(sample.delta_days)})
+    features = voxel_feature_matrix(model_score, distance_score, outside, context)
+    model_rank = _rank_normalize_score(model_score[outside]).astype(np.float32)
+    hybrid_score = 0.25 * distance_score[outside].astype(np.float32) + 0.75 * model_rank
+    scores = {
+        "model_probability": model_score[outside].astype(np.float32),
+        "model_rank": model_rank,
+        "distance_rank": distance_score[outside].astype(np.float32),
+        "hybrid_distance_model_a0.75": hybrid_score.astype(np.float32),
+    }
+    if calibrator is not None:
+        scores["calibrated_growth_probability"] = calibrator.predict_proba(features)[:, 1].astype(np.float32)
+    return {
+        "sample": sample,
+        "split": split_name,
+        "input_mask": input_mask,
+        "target_mask": target_mask,
+        "outside_input": outside,
+        "growth_label": growth,
+        "features": features,
+        "context": context,
+        "scores": scores,
+    }
+
+
+def fit_calibrator_from_arrays(x_parts: List[np.ndarray], y_parts: List[np.ndarray], seed: int):
+    try:
+        from sklearn.linear_model import LogisticRegression
+        from sklearn.pipeline import make_pipeline
+        from sklearn.preprocessing import StandardScaler
+    except Exception as e:
+        raise RuntimeError("scikit-learn is required for the calibrated growth-field decoder.") from e
+
+    if not x_parts:
+        raise ValueError("No training voxels available for calibrator.")
+    x = np.vstack(x_parts)
+    y = np.concatenate(y_parts).astype(np.uint8)
+    if int(y.sum()) == 0:
+        raise ValueError("No positive future-growth voxels found for calibrator training.")
+
+    clf = make_pipeline(
+        StandardScaler(),
+        LogisticRegression(max_iter=500, class_weight="balanced", solver="lbfgs", random_state=seed),
+    )
+    clf.fit(x, y)
+    return clf, {"n_voxels": int(len(y)), "n_positive_voxels": int(y.sum()), "positive_fraction": float(y.mean())}
+
+
+def train_calibrator_streaming(
+    dataset_root: Path,
+    samples,
+    model,
+    ds,
+    start_index: int,
+    dev,
+    label_cache: Dict[str, np.ndarray],
+    max_pos: int,
+    max_neg: int,
+    seed: int,
+    verbose: bool = False,
+):
+    rng = np.random.default_rng(seed)
+    x_parts: List[np.ndarray] = []
+    y_parts: List[np.ndarray] = []
+    for idx, sample in enumerate(samples):
+        payload = build_single_payload(
+            dataset_root,
+            sample,
+            model,
+            ds,
+            start_index + idx,
+            dev,
+            "train",
+            label_cache,
+        )
+        x_s, y_s = sample_training_voxels(
+            payload["features"],
+            payload["growth_label"],
+            max_pos=max_pos,
+            max_neg=max_neg,
+            rng=rng,
+        )
+        if len(y_s):
+            x_parts.append(x_s)
+            y_parts.append(y_s)
+        if verbose and (idx + 1) % 25 == 0:
+            print(f"[INFO] Sampled calibrator voxels from {idx + 1}/{len(samples)} train samples")
+        del payload
+    return fit_calibrator_from_arrays(x_parts, y_parts, seed=seed)
+
+
+def evaluate_thresholds_streaming(
+    dataset_root: Path,
+    samples,
+    model,
+    ds,
+    start_index: int,
+    dev,
+    split_name: str,
+    label_cache: Dict[str, np.ndarray],
+    score_sources: Iterable[str],
+    thresholds: Iterable[float],
+    calibrator=None,
+    verbose: bool = False,
+) -> pd.DataFrame:
+    rows = []
+    thresholds_l = sorted(set([float(t) for t in thresholds] + [float("inf")]))
+    for idx, sample in enumerate(samples):
+        payload = build_single_payload(
+            dataset_root,
+            sample,
+            model,
+            ds,
+            start_index + idx,
+            dev,
+            split_name,
+            label_cache,
+            calibrator=calibrator,
+        )
+        for source in score_sources:
+            for threshold in thresholds_l:
+                rows.append(evaluate_payload(payload, source, threshold))
+        if verbose and (idx + 1) % 25 == 0:
+            print(f"[INFO] Evaluated {idx + 1}/{len(samples)} {split_name} samples")
+        del payload
+    return pd.DataFrame(rows)
+
+
+def apply_selected_streaming(
+    dataset_root: Path,
+    samples,
+    model,
+    ds,
+    start_index: int,
+    dev,
+    split_name: str,
+    label_cache: Dict[str, np.ndarray],
+    selected: pd.DataFrame,
+    calibrator=None,
+    verbose: bool = False,
+) -> pd.DataFrame:
+    rows = []
+    selected_l = [(str(row["score_source"]), float(row["threshold"])) for _, row in selected.iterrows()]
+    for idx, sample in enumerate(samples):
+        payload = build_single_payload(
+            dataset_root,
+            sample,
+            model,
+            ds,
+            start_index + idx,
+            dev,
+            split_name,
+            label_cache,
+            calibrator=calibrator,
+        )
+        for source, threshold in selected_l:
+            rows.append(evaluate_payload(payload, source, threshold))
+        if verbose and (idx + 1) % 25 == 0:
+            print(f"[INFO] Applied selected thresholds to {idx + 1}/{len(samples)} {split_name} samples")
+        del payload
+    return pd.DataFrame(rows)
+
+
 def qbin(series: pd.Series, labels: List[str]) -> pd.Series:
     vals = series.dropna()
     if vals.nunique() < 2:
@@ -495,7 +677,12 @@ def main() -> None:
     parser.add_argument("--horizons", type=str, default="1,2,3")
     parser.add_argument("--allowed_tiers", type=str, default=None)
     parser.add_argument("--device", type=str, default="auto")
-    parser.add_argument("--threshold_quantiles", type=str, default="0.50,0.70,0.80,0.90,0.95,0.975,0.99,0.995,0.999")
+    parser.add_argument(
+        "--threshold_quantiles",
+        type=str,
+        default="0.01,0.02,0.05,0.10,0.20,0.30,0.40,0.50,0.70,0.80,0.90,0.95,0.975,0.99,0.995,0.999",
+        help="Comma-separated score thresholds in [0,1]. Name kept for backward compatibility.",
+    )
     parser.add_argument("--max_pos_per_sample", type=int, default=1000)
     parser.add_argument("--max_neg_per_sample", type=int, default=3000)
     parser.add_argument("--n_bootstrap", type=int, default=5000)
@@ -509,54 +696,29 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    quantiles = parse_threshold_quantiles(args.threshold_quantiles)
+    thresholds = parse_threshold_values(args.threshold_quantiles)
     train_samples = build_samples_for_split(dataset_root, args.train_split, args.fit_sessions, args.horizons, args.allowed_tiers)
     val_samples = build_samples_for_split(dataset_root, args.validation_split, args.fit_sessions, args.horizons, args.allowed_tiers)
     test_samples = build_samples_for_split(dataset_root, args.test_split, args.fit_sessions, args.horizons, args.allowed_tiers)
 
     all_samples = train_samples + val_samples + test_samples
     model, ds_all, dev, spec = load_model(dataset_root, baseline_output_dir, args.model_method, all_samples, args.device)
-    train_ds = ds_all
     val_offset = len(train_samples)
     test_offset = len(train_samples) + len(val_samples)
 
     label_cache: Dict[str, np.ndarray] = {}
-    train_payloads = build_payloads(
+    calibrator, train_info = train_calibrator_streaming(
         dataset_root,
         train_samples,
         model,
-        train_ds,
+        ds_all,
+        0,
         dev,
-        args.train_split,
         label_cache,
-        verbose=args.verbose,
-    )
-    val_payloads = build_payloads(
-        dataset_root,
-        val_samples,
-        model,
-        type("OffsetDataset", (), {"__getitem__": lambda _, i: ds_all[val_offset + i]})(),
-        dev,
-        args.validation_split,
-        label_cache,
-        verbose=args.verbose,
-    )
-    test_payloads = build_payloads(
-        dataset_root,
-        test_samples,
-        model,
-        type("OffsetDataset", (), {"__getitem__": lambda _, i: ds_all[test_offset + i]})(),
-        dev,
-        args.test_split,
-        label_cache,
-        verbose=args.verbose,
-    )
-
-    calibrator, train_info = train_calibrator(
-        train_payloads,
         max_pos=args.max_pos_per_sample,
         max_neg=args.max_neg_per_sample,
         seed=args.seed,
+        verbose=args.verbose,
     )
     train_info.update(
         {
@@ -568,8 +730,6 @@ def main() -> None:
             "n_test_samples": int(len(test_samples)),
         }
     )
-    add_calibrated_scores(val_payloads, calibrator)
-    add_calibrated_scores(test_payloads, calibrator)
 
     score_sources = [
         "model_probability",
@@ -578,10 +738,35 @@ def main() -> None:
         "hybrid_distance_model_a0.75",
         "calibrated_growth_probability",
     ]
-    validation_candidates = evaluate_thresholds(val_payloads, score_sources, quantiles)
+    validation_candidates = evaluate_thresholds_streaming(
+        dataset_root,
+        val_samples,
+        model,
+        ds_all,
+        val_offset,
+        dev,
+        args.validation_split,
+        label_cache,
+        score_sources,
+        thresholds,
+        calibrator=calibrator,
+        verbose=args.verbose,
+    )
     validation_summary = summarize_candidates(validation_candidates)
     selected = select_thresholds(validation_summary)
-    test_selected = apply_selected(test_payloads, selected)
+    test_selected = apply_selected_streaming(
+        dataset_root,
+        test_samples,
+        model,
+        ds_all,
+        test_offset,
+        dev,
+        args.test_split,
+        label_cache,
+        selected,
+        calibrator=calibrator,
+        verbose=args.verbose,
+    )
 
     test_overall = summarize_selected(test_selected, [])
     test_by_tier = summarize_selected(test_selected, ["tier"])
