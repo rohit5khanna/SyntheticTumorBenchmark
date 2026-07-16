@@ -31,9 +31,18 @@ def _standardize_label(arr: np.ndarray) -> np.ndarray:
 
 
 def _qbin(series: pd.Series, labels: List[str]) -> pd.Series:
-    if series.dropna().nunique() < len(labels):
+    clean = series.dropna()
+    if clean.nunique() < len(labels):
         return pd.Series(["all"] * len(series), index=series.index)
-    return pd.qcut(series, q=len(labels), labels=labels, duplicates="drop")
+    try:
+        return pd.qcut(series, q=len(labels), labels=labels, duplicates="raise")
+    except ValueError:
+        # Some clinical/synthetic descriptors have repeated quantile edges.
+        # In that case, keep the analysis alive with unlabeled duplicate-safe bins.
+        bins = pd.qcut(series, q=len(labels), labels=False, duplicates="drop")
+        if bins.dropna().nunique() <= 1:
+            return pd.Series(["all"] * len(series), index=series.index)
+        return bins.map(lambda x: f"bin_{int(x)}" if pd.notna(x) else np.nan)
 
 
 def _absolute_growth_bins(df: pd.DataFrame) -> pd.Series:
