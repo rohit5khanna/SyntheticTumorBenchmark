@@ -4444,3 +4444,17 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
 - Added a residual-change probability diagnostic to evaluate whether the growth and loss heads contain useful ranking signal before hard thresholding.
 - The diagnostic computes growth-channel AP/AUC over outside-input candidate voxels and loss-channel AP/AUC over inside-input candidate voxels, plus mean probability on true growth, true loss, stable core, and background regions.
 - Purpose: separate three possible failure modes of the naive residual-change model: no probability signal, probability signal but poor thresholding/calibration, or signal restricted to one channel/regime. This should guide whether the next method should use loss reweighting, ROI/band-limited residual learning, distance-aware candidates, or a safer growth-only correction.
+
+## 2026-07-19 - Residual Probability Diagnostic Result
+
+- Reviewed residual-change probability diagnostics for the corrected SAILOR stride-2 residual ResUNet.
+- Growth head contains strong spatial ranking signal despite poor hard-threshold Dice: overall growth AP about 0.632 and growth AUC about 0.979; test growth AP about 0.630 and AUC about 0.980.
+- Growth probabilities separate true new-growth voxels from outside-input non-growth voxels: overall mean growth probability on true growth about 0.374 versus outside non-growth about 0.042.
+- Loss head is not useful in its current form and appears directionally inverted: overall loss AP about 0.238 and loss AUC about 0.320, with loss probability higher on stable core (about 0.711) than on true loss voxels (about 0.603).
+- Interpretation: the residual branch should not be abandoned, but it should be reframed. The model can rank likely growth locations, while direct loss/shrinkage prediction is unreliable. Next method experiments should focus on growth-only or growth-biased correction constrained by LOCF/stable-core preservation, not symmetric growth/loss reconstruction.
+
+## 2026-07-19 - Growth-Only Residual Policy Evaluator Added
+
+- Added an evaluator for the asymmetric residual formulation: `future = input mask OR selected learned growth region`.
+- The evaluator uses the existing residual-change checkpoint but ignores the unreliable loss head. It tests both fixed growth-probability thresholds and top-k growth budgets based on a fraction of input tumor volume.
+- Motivation: the residual probability diagnostic showed strong growth ranking signal but unreliable loss prediction. The next question is whether growth ranking can improve short-horizon forecasts while preserving the LOCF persistence prior.
