@@ -4458,3 +4458,19 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
 - Added an evaluator for the asymmetric residual formulation: `future = input mask OR selected learned growth region`.
 - The evaluator uses the existing residual-change checkpoint but ignores the unreliable loss head. It tests both fixed growth-probability thresholds and top-k growth budgets based on a fraction of input tumor volume.
 - Motivation: the residual probability diagnostic showed strong growth ranking signal but unreliable loss prediction. The next question is whether growth ranking can improve short-horizon forecasts while preserving the LOCF persistence prior.
+
+## 2026-07-19 - Growth-Only Residual Policy Result
+
+- Evaluated asymmetric growth-only residual policy on SAILOR using the corrected stride-2 residual checkpoint: `future = input mask OR selected learned growth region`.
+- Validation selected a top-k budget policy rather than a fixed threshold: add the top growth-probability voxels up to 5% of the input tumor volume.
+- Validation performance modestly exceeded LOCF: mean Dice 0.6200 versus LOCF 0.6177, mean gap +0.0024, win rate 57.1%.
+- Test performance was essentially tied with a tiny positive mean: mean Dice 0.6415 versus LOCF 0.6413, mean gap +0.0003, win rate 65.4%.
+- By net direction, the selected policy improved net-growth windows but slightly harmed net-shrinkage windows: test net-growth gap +0.0036; test net-shrinkage gap -0.0051.
+- Threshold policies were unsafe because they added too much growth and degraded Dice; budgeted top-k policies were much safer and better matched the interpretation that the model is useful as a growth ranking field rather than a calibrated binary mask.
+- Interpretation: this is not a strong performance result yet, but it validates the asymmetric direction. The growth field contains actionable signal when used conservatively, while unrestricted thresholding or symmetric growth/loss reconstruction is harmful. Next steps should quantify uncertainty and then train/evaluate a model designed specifically for growth-only, outside-input candidate learning rather than using a residual two-head model post hoc.
+
+## 2026-07-19 - Growth-Only Policy Patient Bootstrap Added
+
+- Added a patient-level bootstrap script for the selected growth-only residual policy versus LOCF.
+- Motivation: the selected growth-only policy produced a small positive validation/test mean gap, but the effect size is tiny and SAILOR windows are correlated within patient. Patient-level resampling is needed before treating the result as robust.
+- The bootstrap summarizes overall, split-level, and split-by-net-direction uncertainty, including confidence intervals and the bootstrap probability that the mean gap versus LOCF is positive.
