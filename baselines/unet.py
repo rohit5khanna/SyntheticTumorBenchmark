@@ -52,11 +52,15 @@ class _TorchForecastDataset:
         raise ValueError(f"Unsupported label array shape: {arr.shape}")
 
     @staticmethod
-    def _standardize_image_sessions(arr: np.ndarray) -> np.ndarray:
+    def _standardize_image_sessions(arr: np.ndarray, n_sessions: int | None = None) -> np.ndarray:
         arr = np.asarray(arr, dtype=np.float32)
         if arr.ndim == 5:
             return arr
         if arr.ndim == 4:
+            if n_sessions is not None and n_sessions > 0 and arr.shape[0] % n_sessions == 0:
+                n_channels = arr.shape[0] // n_sessions
+                if n_channels > 1:
+                    return arr.reshape(n_sessions, n_channels, *arr.shape[1:])
             return arr[:, None, ...]
         raise ValueError(f"Unsupported image array shape: {arr.shape}")
 
@@ -71,7 +75,10 @@ class _TorchForecastDataset:
             "treatment": np.load(p["treatment"]).astype(np.float32),
         }
         if self.input_mode == "image_mask":
-            arrs["image"] = self._standardize_image_sessions(np.load(p["image"]))  # [S,C,H,W,D]
+            arrs["image"] = self._standardize_image_sessions(
+                np.load(p["image"]),
+                n_sessions=int(arrs["label"].shape[0]),
+            )  # [S,C,H,W,D]
 
         if self.cache_arrays:
             self._cache[patient_id] = arrs

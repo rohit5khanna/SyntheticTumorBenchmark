@@ -1,5 +1,339 @@
 # Updated Log
 
+## 2026-07-11: Workspace Consolidation And Research Restart
+
+After a one-week pause, the project was restarted with two priorities:
+
+1. preserve the broader research goal rather than drifting back into a paper-only mindset;
+2. reduce the personal and practical disconnect caused by project files being spread across multiple folders and repositories.
+
+A new local hub folder was created at:
+
+`/Users/rohitkhanna/Desktop/ORIE Spring 2026/Tumor_Growth_Project/TaDiff/Current_Work`
+
+This folder links the active project materials into one place without moving the underlying repositories. This preserves existing git paths, script assumptions, and Colab references while making the project easier to re-enter.
+
+The hub contains:
+
+- `repos/`: links to the active and reference repositories;
+- `active_docs/`: links to logs, research questions, references, dataset notes, and draft artifacts;
+- `literature/`: links to local PDFs relevant to tumor growth modeling and forecasting;
+- `notes/`: links to roadmaps and older project notes;
+- `utilities/`: links to backup and Google Drive pull scripts;
+- `outputs_index/`: links to generated figure/table folders inside the benchmark repo.
+
+A project map was also added at:
+
+`docs/PROJECT_MAP.md`
+
+Current working interpretation:
+
+- `SyntheticTumorBenchmark` remains the canonical code and documentation repo.
+- `Current_Work` is the human-facing entry point for the overall research workspace.
+- The next research phase should resume from the regime-aware analysis foundation, with special attention to probabilistic growth fields, ranking-style evaluation, and descriptor-conditioned forecasting ideas inspired by the recent literature scan.
+
+## 2026-07-11: Growth-Aware Evaluation Layer Added
+
+After reading the first two suggested papers, two ideas became immediately useful for the next phase:
+
+1. the observation from probabilistic glioma-growth modeling that larger growth cases may be easier for learned models than moderate/subtle cases;
+2. the forward-ranking framing, where future tumor growth is evaluated as a problem of ranking likely future-growth regions rather than only maximizing segmentation overlap.
+
+To test these ideas against the existing SRD evidence, a new analysis script was added:
+
+`scripts/analyze_growth_ranking.py`
+
+The script adds a growth-aware evaluation layer over existing baseline outputs. It computes:
+
+- per-sample future growth volume;
+- new-growth, absolute-change, and net-growth bins;
+- Dice by future new-growth bin;
+- model gain over LOCF by future new-growth bin;
+- optional forward-growth ranking metrics when model checkpoints are available.
+
+The ranking mode loads accessible learned-model checkpoints and evaluates whether predicted probability maps rank truly new tumor-growth voxels highly outside the input tumor mask. This is intended as a first bridge from standard Dice evaluation toward probabilistic growth-field thinking.
+
+Interpretation standard:
+
+- if learned models only improve in high-growth bins, the project should explicitly treat short-horizon forecasting difficulty as change-size dependent;
+- if ranking metrics reveal useful signal even when Dice is modest, future work should move toward probabilistic growth-likelihood or residual-growth prediction;
+- if both Dice gains and ranking metrics are weak in moderate-growth cases, that becomes evidence that persistence dominance is not merely a metric artifact but a real difficulty mode.
+
+## 2026-07-11: First Growth-Aware SRD Results
+
+The first growth-aware evaluation pass was run on `fixed_dataset_v3_lite_generalized` using the compact baseline output directory `v3lite_compact_h123_s42`.
+
+The analysis produced:
+
+- `growth_sample_features.csv`
+- `dice_by_new_growth_bin.csv`
+- `model_gain_vs_locf_by_new_growth_bin.csv`
+- `growth_ranking_metrics.csv`
+- `growth_aware_evaluation_report.md`
+
+### Main result
+
+The learned-model advantage is strongly dependent on the amount of true new tumor growth.
+
+For ResUNet image+mask versus LOCF:
+
+- low new-growth bin: mean gap approximately `-0.003`, win rate `0.244`;
+- medium new-growth bin: mean gap approximately `+0.011`, win rate `0.634`;
+- high new-growth bin: mean gap approximately `+0.196`, win rate `0.927`.
+
+For U-Net image+mask versus LOCF:
+
+- low new-growth bin: mean gap approximately `-0.056`, win rate `0.171`;
+- medium new-growth bin: mean gap approximately `-0.071`, win rate `0.317`;
+- high new-growth bin: mean gap approximately `+0.168`, win rate `0.878`.
+
+This is an important strengthening of the regime-aware story. It suggests that learned models are not uniformly better than persistence; they become useful primarily when the next scan contains meaningful new growth.
+
+### Ranking-style result
+
+Forward-growth ranking metrics were successfully computed from learned-model checkpoints.
+
+Across horizons, both U-Net and ResUNet produced nontrivial average precision and high recall in the top-ranked candidate regions. This supports the idea that the learned models may contain useful spatial information about where new tumor growth is likely to occur, even when standard Dice does not tell the full story.
+
+However, these ranking metrics are not yet conclusive because they still need simple baselines:
+
+- random ranking / prevalence baseline;
+- distance-from-current-mask expansion baseline;
+- possibly simple dilation or morphology-based growth-front baseline.
+
+Until those baselines are added, the ranking result should be interpreted as promising but incomplete.
+
+### Immediate interpretation
+
+The current evidence now supports a sharper hypothesis:
+
+Short-horizon tumor forecasting is partly a persistence-residual problem. When future new growth is small, LOCF is hard to beat and learned models may add little or even hurt. When future new growth is substantial, learned models can improve strongly, suggesting that the task should be evaluated and modeled around departures from persistence rather than only full-mask overlap.
+
+## 2026-07-12: Forward-Growth Ranking Baselines Added
+
+The growth-ranking analysis was extended with simple reference baselines:
+
+1. `random_prevalence`: analytical random-ranking baseline;
+2. `distance_to_input_mask`: a growth-front baseline that ranks candidate voxels by closeness to the current tumor mask.
+
+This addition was necessary because high recall in a future-growth ranking task may be achievable by a simple boundary-expansion heuristic.
+
+### Result summary
+
+The learned models strongly beat random prevalence, as expected.
+
+More importantly, the learned models also outperform the distance-to-input-mask baseline on average precision and recall at the growth-volume budget.
+
+Approximate mean average precision:
+
+- Horizon 1:
+  - distance baseline: `0.471`
+  - ResUNet: `0.639`
+  - U-Net: `0.671`
+- Horizon 2:
+  - distance baseline: `0.523`
+  - ResUNet: `0.648`
+  - U-Net: `0.677`
+- Horizon 3:
+  - distance baseline: `0.474`
+  - ResUNet: `0.604`
+  - U-Net: `0.625`
+
+Approximate recall at growth-volume budget:
+
+- Horizon 1:
+  - distance baseline: `0.470`
+  - ResUNet: `0.621`
+  - U-Net: `0.639`
+- Horizon 2:
+  - distance baseline: `0.500`
+  - ResUNet: `0.653`
+  - U-Net: `0.659`
+- Horizon 3:
+  - distance baseline: `0.455`
+  - ResUNet: `0.615`
+  - U-Net: `0.610`
+
+### Important nuance
+
+The distance baseline remains very strong at broad top-region recall, especially recall at 5% of candidate voxels. This means a large amount of future growth is spatially near the current tumor boundary, and any future probabilistic growth-field method should treat boundary expansion as a serious baseline or prior.
+
+### Interpretation
+
+These results strengthen the case for a ranking/probabilistic-growth-field view:
+
+- the learned models are not only improving full-mask Dice in high-growth cases;
+- they also provide a better localized ranking of true new-growth voxels than a simple distance-based growth-front heuristic;
+- however, much of the broad recall can still be explained by spatial proximity to the existing tumor.
+
+The next methodological implication is that a useful forecasting model may combine:
+
+1. a persistence or growth-front prior;
+2. learned correction/ranking over that prior;
+3. regime or descriptor conditioning to determine when the learned correction should be trusted.
+
+## 2026-07-12: Stratified Forward-Growth Ranking Findings
+
+The forward-growth ranking analysis was stratified by new-growth bin, tier, and horizon.
+
+### By new-growth bin
+
+The learned models outperform the distance-to-input-mask baseline across low, medium, and high new-growth bins when measured by average precision and recall at the growth-volume budget.
+
+Approximate average precision:
+
+- low growth:
+  - distance baseline: `0.115`
+  - ResUNet: `0.229`
+  - U-Net: `0.221`
+- medium growth:
+  - distance baseline: `0.394`
+  - ResUNet: `0.569`
+  - U-Net: `0.620`
+- high growth:
+  - distance baseline: `0.720`
+  - ResUNet: `0.842`
+  - U-Net: `0.858`
+
+This suggests the learned models add spatial ranking value beyond simple boundary proximity, especially as true future growth becomes more substantial.
+
+### By tier
+
+The tier-wise ranking results show a useful split:
+
+- Tier A has small future-growth volume and lower average precision overall.
+- Tier B and Tier C show very high learned-model ranking performance.
+- The learned models outperform the distance baseline in all tiers on average precision and recall at the growth-volume budget.
+
+Approximate average precision:
+
+- Tier A:
+  - distance baseline: `0.204`
+  - ResUNet: `0.328`
+  - U-Net: `0.380`
+- Tier B:
+  - distance baseline: `0.798`
+  - ResUNet: `0.959`
+  - U-Net: `0.962`
+- Tier C:
+  - distance baseline: `0.747`
+  - ResUNet: `0.909`
+  - U-Net: `0.912`
+
+### Nuance
+
+The distance baseline remains extremely strong for broad capture at 5% of candidate voxels. This means the current tumor boundary is already a powerful growth-location prior. The learned models are most clearly adding value in tighter prioritization metrics, especially average precision and recall at the growth-volume budget.
+
+### Interpretation
+
+The evidence now supports a more precise framing:
+
+Short-horizon forecasting has two separable components:
+
+1. a broad growth-front component that can be captured by proximity to the current tumor;
+2. a finer spatial prioritization component where learned models add value, especially in medium/high growth and Tier B/C cases.
+
+This further motivates a future model that explicitly combines a simple growth-front prior with a learned, descriptor-conditioned residual or ranking correction.
+
+## 2026-07-12: Hybrid Growth-Front Plus Learned Ranking Test
+
+A first non-training hybrid test was run to ask whether a simple growth-front prior can be combined with learned-model probability maps to improve forward-growth ranking.
+
+The hybrid score was constructed by rank-normalizing:
+
+1. the distance-to-current-mask score;
+2. the learned model probability score;
+
+and taking a weighted combination:
+
+`hybrid = (1 - alpha) * distance_rank + alpha * model_rank`
+
+with `alpha` values `0.25`, `0.50`, and `0.75`.
+
+### Main result
+
+The hybrid does not produce a dramatic new method win. Instead, it behaves as a controlled tradeoff between the distance prior and the learned model.
+
+The best hybrid settings generally use a high learned-model weight (`alpha = 0.75`). This confirms that the learned model carries most of the fine-ranking signal.
+
+### Where hybrid helps
+
+The hybrid can slightly improve some ResUNet ranking summaries and can retain broader top-region recall better than the pure learned model in some settings.
+
+Examples:
+
+- high-growth ResUNet AP:
+  - pure ResUNet: `0.842`
+  - hybrid alpha 0.75: `0.854`
+- Tier C ResUNet AP:
+  - pure ResUNet: `0.909`
+  - hybrid alpha 0.75: `0.918`
+
+### Where hybrid does not help
+
+The pure U-Net ranking remains very strong and is often equal to or better than the hybrid, especially on average precision. Naive rank fusion is therefore not enough to claim a new forecasting method.
+
+### Interpretation
+
+This is still useful evidence.
+
+It suggests:
+
+1. the distance prior is valuable as a broad growth-front prior;
+2. the learned model is valuable for fine spatial prioritization;
+3. naive fixed-weight fusion only partly combines these benefits;
+4. a stronger future method should probably learn when to weight the growth-front prior versus the learned correction, instead of using a fixed alpha.
+
+This points toward descriptor-conditioned gating or adaptive residual/ranking correction rather than simple static fusion.
+
+## 2026-07-12: Adaptive Ranking Gate Upper-Bound Check
+
+An adaptive ranking-gate analysis was run on the hybrid growth-ranking outputs. The goal was to estimate how much headroom exists if one could choose, per case or per coarse group, between:
+
+- distance-to-input-mask growth-front ranking;
+- the pure learned model ranking;
+- fixed hybrid distance/model rank-fusion variants.
+
+### Oracle result
+
+For U-Net:
+
+- distance mean AP: `0.489`
+- pure U-Net mean AP: `0.659`
+- best static method: pure U-Net, `0.659`
+- oracle mean AP: `0.674`
+- oracle gain over best static: `+0.015`
+
+For ResUNet:
+
+- distance mean AP: `0.489`
+- pure ResUNet mean AP: `0.632`
+- best static method: hybrid alpha `0.75`, `0.640`
+- oracle mean AP: `0.654`
+- oracle gain over best static: `+0.014`
+
+### Group-policy result
+
+The best group-level choices are structured but modest:
+
+- U-Net is usually the best static choice.
+- Hybrid U-Net with high learned weight is slightly preferred in high-growth, Tier B/C, and Horizon 3 groups.
+- ResUNet benefits more from the hybrid, especially with alpha `0.75`.
+- Distance alone is never the best group policy on average, although it remains useful as a broad prior.
+
+### Interpretation
+
+The oracle headroom is real but small. This means a complex adaptive gate is not automatically justified by these results alone.
+
+The current evidence suggests:
+
+1. learned ranking is already close to the best static choice;
+2. simple distance/model fusion mainly helps weaker learned rankers or selected subgroups;
+3. a future gate would need to be very lightweight and descriptor-driven to be worth adding;
+4. the stronger methodological direction may be learned residual/ranking correction over a growth-front prior, rather than a post-hoc static selector.
+
+This is a useful narrowing result. It prevents over-investing in naive gating while preserving the idea that descriptor-conditioned weighting could still be useful if implemented inside the model or residual field rather than as a coarse post-hoc rule.
+
 ## 2026-06-30: Project Pivot From Competition Draft To Substantial Research Program
 
 This document records the current pivot in the project direction after the first DMS-oriented draft and the subsequent review/assessment phase.
@@ -297,6 +631,209 @@ The goal is to answer a sharper question:
 > Which forecast-time tumor descriptors consistently explain when learned forecasting departs from persistence, and which parts of that explanation remain stable under harder scrutiny?
 
 That question is now the center of the current sprint.
+
+## 2026-07-03: Descriptor Robustness Findings Consolidated
+
+The latest descriptor-focused checks strengthened the analysis in a useful way.
+
+### What improved
+
+1. The cross-regime pull signal did **not** disappear when `tier` and `horizon` were removed from the prediction setup.
+2. In fact, the pooled `raw_only` cross-regime task performed slightly better than the versions that included `tier` and/or `horizon`, suggesting that the descriptor structure is not merely a reflection of the evaluation scaffold.
+3. Bootstrap confidence intervals confirmed that the largest anchor-separation effects are concentrated in:
+   - input tumor volume,
+   - treatment-at-input state,
+   - recent relative growth,
+   - and connected-component count.
+4. PCA recovered a similar geometry:
+   - the first principal component aligned strongly with recent growth, burden, treatment status, and structural fragmentation;
+   - the persistence-core and learned-advantage-core populations were separated mainly along this axis;
+   - ambiguous populations occupied intermediate regions rather than appearing unstructured.
+
+### What remains limited
+
+1. Patient-grouped validation kept part of the signal but reduced its strength, so the descriptor story survives but is not yet strong enough to be treated as a near-clinical predictor.
+2. Transition prediction remains the weakest and noisiest layer.
+3. Permutation tests were suggestive rather than decisive, especially once grouped validation was introduced.
+
+### Immediate next refinement layer
+
+The next useful checks are now more localized:
+
+1. test whether the anchor split survives **within tiers** rather than only in the pooled dataset;
+2. test whether it survives **within horizons** rather than only across all horizons together;
+3. derive simple descriptor rules to see whether part of the regime pattern is expressible in a transparent threshold-style form.
+
+This keeps the focus on whether the descriptor structure is genuinely local and stable, not just visible after aggregation.
+
+## 2026-07-03: Localized Descriptor Checks Added
+
+The descriptor story was then pushed one step further by asking whether the pooled effects remain visible once the data are broken down by tier and by horizon, and whether the same patterns can be expressed with simple transparent rules.
+
+### Within-tier anchor separation
+
+The anchor split remained visible within tiers, but not uniformly:
+
+1. Tier B showed strong and multi-feature separation between the persistence-core and learned-advantage-core cases.
+   The largest effects were associated with:
+   - input volume,
+   - treatment status,
+   - compactness,
+   - elongation,
+   - connected-component count,
+   - and recent growth.
+2. Tier C showed even larger apparent effects for several descriptors, especially:
+   - elongation,
+   - recent growth,
+   - compactness,
+   - connected-component count,
+   - and input volume.
+3. However, Tier C also had a very small `both_easy_core` comparison set, so those effect sizes must be treated cautiously.
+4. Tier A did not provide a comparable within-tier anchor split in this check, which is itself informative: the strongest local descriptor contrast is not being driven by the easiest regime alone.
+
+### Within-horizon anchor separation
+
+The anchor split also remained visible across horizons:
+
+1. Horizon 1 showed a very strong volume effect and clear recent-growth and connected-component differences.
+2. Horizon 2 continued to show strong effects in volume, treatment status, recent growth, and connected-component count.
+3. Horizon 3 retained similar signals, especially for treatment status, volume, and recent growth.
+4. The sign pattern remained broadly consistent across horizons, even though some lower-magnitude features such as elongation and delta-days became unstable.
+
+This suggests that the descriptor structure is not confined to a single forecast horizon.
+
+### Simple rule extraction
+
+Simple depth-limited decision rules recovered a compressed version of the same story.
+
+For cross-regime pull:
+
+1. the first split was on `delta_days`;
+2. the next key split was on `recent_relative_growth`;
+3. smaller follow-up splits used compactness, elongation, and volume.
+
+For transition:
+
+1. the tree relied mainly on compactness and recent growth;
+2. other descriptors played little or no role in the final shallow rule set.
+
+### Current interpretation
+
+These localized checks reinforce three points:
+
+1. the descriptor story is not purely a pooled-data artifact;
+2. volume, recent growth, treatment state, and structural descriptors remain central even after localization;
+3. the transition population is still harder to stabilize than the core anchor contrast.
+
+At the same time, the results also show where caution is required:
+
+1. some tiers contain small comparison groups;
+2. some very large effect sizes are partly driven by those small subsets;
+3. therefore the right interpretation is that the local signal is promising and structurally consistent, but not yet fully stabilized in every subgroup.
+
+## 2026-07-03: Compact Core-Descriptor Phase Started
+
+After the evidence-map step, the descriptor story now appears concentrated in a small core set rather than spread evenly across all available variables.
+
+The current working core set is:
+
+1. `input_volume_vox`
+2. `recent_relative_growth`
+3. `treated_at_input`
+4. `input_connected_component_count`
+
+with `input_compactness_proxy` as the next descriptor just outside the core.
+
+### Why this phase matters
+
+The next question is no longer only whether descriptor signal exists, but whether that signal can be compressed into a small, reusable signature that:
+
+1. still explains the anchor split;
+2. still helps with cross-regime ambiguity;
+3. survives grouped validation reasonably well;
+4. and can later serve as a practical conditioning prior for a forecasting model.
+
+### Immediate checks
+
+The compact-descriptor pass will therefore test:
+
+1. pooled predictive signal using only the core descriptors;
+2. grouped predictive signal using only the core descriptors;
+3. PCA structure using only the core descriptors;
+4. shallow decision rules using only the core descriptors.
+
+This is intended to answer whether the regime story can be made simpler, sharper, and more operational.
+
+## 2026-07-03: Objective Critique Of Current Status
+
+At this stage, the project has clearly improved in rigor, but it is still better described as a strong analytical foundation than as a finished research contribution.
+
+### What is genuinely working
+
+1. The core research question is good:
+   - short-horizon forecasting is not uniform,
+   - persistence dominates in some cases,
+   - learned models help in others,
+   - and the difference appears to depend on observable forecast-time descriptors.
+2. The project has moved well beyond a simple model-comparison exercise.
+3. The descriptor story is now supported by multiple checks:
+   - threshold sensitivity,
+   - raw-only ablations,
+   - grouped validation,
+   - bootstrap confidence intervals,
+   - PCA structure,
+   - within-tier checks,
+   - within-horizon checks,
+   - and shallow rule extraction.
+4. The compact-core analysis suggests a useful two-layer view:
+   - a small core descriptor set explains the main persistence-vs-learned axis,
+   - while additional descriptors appear necessary for ambiguity resolution.
+
+### What is still weak or incomplete
+
+1. The project does not yet contain a strong method contribution.
+   The best part of the work is currently the analysis, not a new forecasting mechanism.
+2. The regime language can become stronger than the evidence if used carelessly.
+   What is firmly supported is structured forecast-difficulty variation in descriptor space, not yet a universal or clinically grounded regime taxonomy.
+3. Some of the strongest subgroup effects, especially in Tier C, are driven by small comparison sets and therefore need caution.
+4. Grouped validation preserves only moderate signal, so descriptor-based generalization is promising but not yet strong.
+5. The transition population remains the noisiest and least stable part of the analysis.
+
+### What can be defended now
+
+The following claims are currently on solid ground:
+
+1. short-horizon forecasting difficulty is not uniform;
+2. performance differences between persistence and learned models are structured rather than random;
+3. a small set of forecast-time descriptors consistently separates persistence-core and learned-advantage-core populations:
+   - input volume,
+   - recent relative growth,
+   - treatment-at-input state,
+   - and connected-component complexity;
+4. additional descriptors seem to refine ambiguity rather than define the core axis;
+5. the descriptor structure survives several robustness checks, though not perfectly.
+
+### What is not yet established
+
+The following should **not** be claimed yet:
+
+1. a clinically stable regime taxonomy;
+2. robust patient-level classification of ambiguous cases;
+3. strong real-world conclusions from the synthetic tier structure alone;
+4. a better forecasting method;
+5. a causal explanation for the descriptor-performance relationship.
+
+### Current strategic interpretation
+
+The present direction is still good, but only if the project now moves from:
+
+- descriptor analysis
+
+to
+
+- an operational forecasting mechanism or conditioning prior built from that analysis.
+
+If that next step is taken carefully, the current analysis can serve as a strong foundation rather than an endpoint.
 
 ## 2026-07-03: Exception-Case Audit Added To SRD Analysis Stack
 
@@ -2642,3 +3179,1253 @@ We have:
 - and a small core set of descriptors that remain meaningfully distinct.
 
 This is a strong result for the analysis sprint because it means the regime characterization framework can now be based on a compact, defensible descriptor set rather than on an overly broad list of candidate variables.
+
+## July 12, 2026 - Growth-Aware Evaluation Stress Test
+
+### Context
+
+After resuming the project, we shifted from only asking whether learned models beat LOCF to asking a more diagnostic question:
+
+> When and where do learned models actually help short-horizon tumor forecasting?
+
+The new growth-aware ranking analyses suggested that the forecasting problem separates into at least three pieces:
+
+- persistence-dominant cases, where LOCF remains hard to beat;
+- growth-front localization, where distance to the current tumor boundary is already a strong prior;
+- fine spatial ranking of new growth, where learned models appear to add information beyond the distance prior.
+
+### Current Evidence
+
+The strongest current pattern is that learned models help most when there is meaningful future new growth. In low-growth cases, LOCF remains competitive and sometimes preferable. In high-growth cases, learned models show much stronger gains over LOCF.
+
+The ranking analyses also showed that a simple distance-to-input-mask reference is a surprisingly strong broad prior, especially for coarse recall, but learned models generally improve average precision and growth-volume recall. Static hybrid fusion between distance and learned scores produced only small gains, while oracle/adaptive selection showed limited additional headroom.
+
+### New Stress-Test Direction
+
+To avoid over-interpreting the clean summaries, we started an explicit exception audit. The goal is to identify cases that challenge the current interpretation:
+
+- high-growth cases where learned models still rank new-growth regions worse than distance;
+- high-growth cases where learned models still lose to LOCF in Dice;
+- low-growth cases where learned models unexpectedly improve over distance or LOCF;
+- cases where ranking is good but Dice is bad;
+- cases where Dice is good but ranking is bad.
+
+This is important because a defensible regime-aware analysis should not only summarize the dominant trend. It should also know where the trend breaks.
+
+### Next Step
+
+Run the exception audit on the SRD growth-aware evaluation outputs and inspect whether the failure modes are rare, structured, or random. If the exceptions are structured, they may point directly toward the next methodological idea: a growth-front-aware residual/ranking model rather than a broad post-hoc gating method.
+
+## July 12, 2026 - Ranking-Dice Tradeoff Follow-Up
+
+The exception audit showed that the dominant failure mode was not simply learned models failing to localize growth. Instead, many cases had improved new-growth ranking but worse full-mask Dice compared with LOCF.
+
+This suggests a deeper split in the short-horizon forecasting task:
+
+- preserving the existing tumor mask, where LOCF is naturally strong;
+- ranking likely new-growth voxels, where learned models can add signal;
+- converting a probabilistic growth field into a hard segmentation mask, where learned models may lose Dice despite useful spatial information.
+
+A follow-up tradeoff analysis was added to separate:
+
+- zero-growth cases;
+- small nonzero absolute growth;
+- medium nonzero absolute growth;
+- large nonzero absolute growth.
+
+It also maps each sample into ranking/Dice quadrants:
+
+- good ranking and good Dice;
+- good ranking but bad Dice;
+- bad ranking but good Dice;
+- bad ranking and bad Dice;
+- neutral cases.
+
+This should help determine whether the current evidence supports a persistence-preserving residual growth model rather than a plain full-mask predictor.
+
+## July 12, 2026 - Persistence Plus Ranked-Growth Budget Test
+
+The ranking-Dice tradeoff analysis produced a strong split:
+
+- large absolute growth: learned models improve both ranking and Dice;
+- small absolute growth: learned models, especially U-Net, can improve growth ranking while hurting full-mask Dice;
+- zero-growth cases need to be separated because ranking metrics are undefined.
+
+This supports the idea that the learned model may contain useful growth-location information even when its full hard segmentation is not preferable to LOCF.
+
+The next operational test is therefore:
+
+> Keep the current input mask as the persistent core and add only a limited budget of top-ranked candidate growth voxels.
+
+This tests whether a persistence-preserving residual-growth formulation can translate the ranking signal into better masks without letting the learned model overwrite the stable tumor core.
+
+Budget policies to test:
+
+- oracle true future growth volume;
+- previous observed growth volume;
+- one percent of candidate voxels;
+- five percent of candidate voxels.
+
+Score sources to compare:
+
+- distance-to-input-mask;
+- U-Net probability score;
+- ResUNet probability score;
+- distance/model hybrid score with high learned-model weight.
+
+## July 12, 2026 - Deployable Growth-Budget Sweep Added
+
+The first persistence-plus-growth-budget test showed that the ranked-growth residual idea is promising, but only when the growth budget is sensible.
+
+Key interpretation:
+
+- oracle true-growth budget gives a clear upper bound and confirms that the spatial ranking signal is useful;
+- previous-growth budget is deployable and mildly positive;
+- fixed candidate-percentage budgets fail because they add far too many voxels in small/medium-growth cases.
+
+The next refinement is a deployable budget-policy sweep:
+
+- scale previous observed growth by factors such as `0.25`, `0.5`, `0.75`, `1.0`, `1.25`, and `1.5`;
+- cap scaled budgets by fractions of current input tumor volume;
+- optionally force the budget to zero when recent previous growth is zero or near-zero.
+
+This should test whether a simple history-aware budget estimate can preserve the positive ranking signal without over-expanding the tumor mask.
+
+## July 12, 2026 - Anti-Overfitting Guardrail For Budget Policies
+
+A concern was raised that the current analysis could become over-engineered around the synthetic dataset.
+
+This is a valid risk. The immediate guardrail is:
+
+- do not select budget policies from the same test table used for reporting;
+- run the candidate budget sweep on a validation split;
+- select a deployable policy on validation only;
+- evaluate the selected policy on held-out test;
+- keep oracle and future-growth-bin analyses clearly labeled as diagnostics, not deployable methods.
+
+A validation-to-test selector was added to enforce this workflow.
+
+## July 12, 2026 - Validation-Selected Budget Policy Held-Out Test Result
+
+The validation-to-test budget selection workflow was run for the persistence-preserving ranked-growth method.
+
+Selected validation policy:
+
+- score source: `hybrid_distance_resunet_image_mask_a0.75`
+- budget policy: `prev_growth_x1p5`
+- policy family: scaled previous growth
+- validation mean Dice: `0.821196`
+- validation LOCF mean Dice: `0.750335`
+- validation mean gap vs LOCF: `+0.070861`
+- validation win rate vs LOCF: `0.657895`
+
+Held-out test result for the selected policy:
+
+- test mean Dice: `0.759344`
+- test LOCF mean Dice: `0.726978`
+- test mean gap vs LOCF: `+0.032367`
+- bootstrap CI for mean gap: `[+0.016370, +0.048781]`
+- test win rate vs LOCF: `0.561404`
+
+Interpretation:
+
+- the validation-selected policy does transfer positively to held-out test;
+- the test gain is much smaller than the validation gain, which is expected and should be treated as a correction against over-optimism;
+- the confidence interval remains above zero in this bootstrap check, which makes this stronger than a post-hoc test-set sweep;
+- the selected policy still appears to over-budget relative to true growth on test, so growth-budget estimation remains the main unresolved bottleneck.
+
+This result supports the current research direction, but the claim should remain conservative: a simple persistence-preserving, ranked-growth residual rule can improve LOCF on SRD when selected on validation, but broader real-data validation is required before treating it as a general forecasting method.
+
+## July 12, 2026 - Selected Budget Policy Robustness Audit Added
+
+After the validation-selected persistence-growth budget policy transferred positively to held-out test, the next scrutiny step was identified as a breakdown audit rather than another model run.
+
+A script was added to audit the selected policy by:
+
+- validation versus test distribution shift;
+- test performance by tier;
+- test performance by horizon;
+- test performance by absolute and relative growth bins;
+- tier-by-horizon and tier-by-growth interactions;
+- missing samples for the selected hybrid score source.
+
+This is intended to test whether the selected policy is broadly useful or only supported by a few favorable subgroups, and to explain why the hybrid policy test count was smaller than the full test sample count.
+
+## July 12, 2026 - Selected Budget Policy Audit Interpretation
+
+The selected validation policy `hybrid_distance_resunet_image_mask_a0.75 + prev_growth_x1p5` was audited on held-out test.
+
+Overall held-out test result on available hybrid-score rows:
+
+- count: `114`
+- mean Dice: `0.759344`
+- LOCF mean Dice: `0.726978`
+- mean gap vs LOCF: `+0.032367`
+- median gap vs LOCF: `+0.006226`
+- win rate vs LOCF: `0.561404`
+- bootstrap CI for mean gap: `[+0.016370, +0.048781]`
+
+The audit showed strong regime dependence:
+
+- Tier A: mean gap `-0.014891`; mostly small-growth cases where LOCF is already strong.
+- Tier B: mean gap `+0.046742`.
+- Tier C: mean gap `+0.086731`.
+- Large nonzero growth: mean gap `+0.133852`, win rate `0.937500`.
+- Medium nonzero growth: mean gap `+0.016296`, win rate `0.606061`.
+- Small nonzero growth: mean gap `-0.023611`, win rate `0.437500`.
+- Zero growth: mean gap `-0.022101`, win rate `0.000000` on non-empty cases included in the hybrid score table.
+
+Nine test samples were missing from the selected hybrid-policy rows. All were empty-input/empty-target zero-growth cases with LOCF Dice `1.0`. These were absent because the hybrid score requires a distance/model ranking outside an input mask, and empty input masks do not provide a valid distance-based ranking. For fair headline reporting, these samples should be treated explicitly rather than silently excluded; the natural deployable behavior is to output an empty mask when the input mask is empty.
+
+Main interpretation:
+
+- the persistence-preserving ranked-growth rule is promising for B/C and large-growth regimes;
+- it is not appropriate as a blanket replacement for LOCF;
+- the next methodological step should be a growth-gating or budget-selection rule that chooses LOCF/zero-budget for small or zero-growth-like cases and activates ranked-growth addition only when the case appears growth-active.
+
+## July 12, 2026 - Validation-Selected Growth-Activity Gate Added
+
+The selected ranked-growth residual policy improved held-out test overall but harmed Tier A, small-growth, and zero-growth cases. This suggests that the next method should not always add growth.
+
+A validation-selected gating script was added to test a simple deployable decision rule:
+
+- if the case appears growth-active, use the ranked-growth residual policy;
+- otherwise, use LOCF;
+- if the input mask is empty or the selected hybrid score is unavailable, fall back to LOCF.
+
+The gate uses prediction-time variables only, such as:
+
+- selected policy growth budget;
+- budget-to-input-volume ratio;
+- input tumor volume;
+- delta days.
+
+Future growth bins remain diagnostic only and are used only after evaluation to understand where the gate helps or fails. The goal is to test whether a simple growth-activity gate can preserve the large-growth benefits while removing the small/zero-growth harm.
+
+## July 12, 2026 - Validation-Selected Growth Gate Result
+
+The validation-selected growth-activity gate was run for the ranked-growth residual policy.
+
+Selected gate:
+
+- gate: `growth_budget_vox >= 2085`
+- base policy: `hybrid_distance_resunet_image_mask_a0.75 + prev_growth_x1p5`
+- validation mean gap vs LOCF: `+0.072384`
+- validation gate active rate: `0.500000`
+
+Held-out test result:
+
+- count: `123`
+- mean Dice: `0.777026`
+- LOCF mean Dice: `0.746955`
+- mean gap vs LOCF: `+0.030071`
+- bootstrap CI: `[+0.017110, +0.043428]`
+- gate active rate: `0.390244`
+
+Important subgroup behavior:
+
+- Tier A: mean gap `0.000000`, gate active rate `0.000000`; the gate fully protected the LOCF-dominant low-growth tier.
+- Tier B: mean gap `+0.021451`, gate active rate `0.461538`.
+- Tier C: mean gap `+0.079503`, gate active rate `0.833333`.
+- Large nonzero growth: mean gap `+0.118728`, gate active rate `0.843750`.
+- Medium nonzero growth: mean gap `+0.001871`, gate active rate `0.393939`.
+- Small nonzero growth: mean gap `0.000000`, gate active rate `0.000000`; the gate removed the small-growth harm.
+- Zero growth: mean gap `-0.006243`, gate active rate `0.307692`; this is the remaining failure mode.
+
+Interpretation:
+
+The gated policy supports the central decomposition: use LOCF for stable/small-growth cases and activate ranked-growth residuals for growth-active cases. It improves held-out test while protecting Tier A and small-growth cases. The remaining bottleneck is false activation in zero-growth cases, especially where previous observed growth is high but future growth stops.
+
+This points to the next research question: can we identify growth cessation or stability from prediction-time descriptors rather than only extrapolating previous growth magnitude?
+
+## July 12, 2026 - Gate False-Activation Audit Added
+
+The gated ranked-growth method still harms some zero-growth cases because it can activate when previous growth was high but future growth stops.
+
+A false-activation audit was added to:
+
+- label gate outcomes as active true growth, false activation on zero growth, protected zero growth, and inactive missed growth;
+- summarize these classes overall and by tier;
+- compare prediction-time feature profiles across these classes;
+- test a validation-selected suppression guard that can turn off the growth gate under simple feature-threshold conditions.
+
+The suppression guard uses only prediction-time features:
+
+- input volume;
+- delta days;
+- selected growth budget;
+- selected budget-to-input-volume ratio;
+- selected budget-to-input-volume percentage.
+
+This tests whether the zero-growth false-activation problem can be reduced with a simple deployable rule, or whether richer growth-cessation modeling is required.
+
+## July 12, 2026 - False-Activation Audit Result
+
+The false-activation audit was run on the validation-selected gated ranked-growth method.
+
+Gate case classes on held-out test:
+
+- active true growth: `40` cases, mean gap `+0.096526`.
+- false activation on zero growth: `8` cases, mean gap `-0.020289`.
+- inactive missed growth: `57` cases, mean gap `0.000000` because LOCF was used.
+- protected zero growth: `18` cases, mean gap `0.000000` because LOCF was used.
+
+Feature profiles showed that false zero-growth activations resemble true active-growth cases under simple prediction-time scalar features:
+
+- active true growth median budget-to-input ratio: `0.456546`.
+- false activation median budget-to-input ratio: `0.458212`.
+- active true growth median growth budget: `6167` voxels.
+- false activation median growth budget: `3261` voxels.
+- false activations had longer median delta days (`149.5`) than active true growth (`92.0`), but this did not provide a useful suppression rule.
+
+A validation-selected suppression guard was selected:
+
+- guard: `suppress_if_delta_days <= 46`.
+- validation mean gap: `+0.073891` vs `+0.072384` without the guard.
+- test mean gap: `+0.030570` vs `+0.030071` without the guard.
+- test bootstrap CI: `[+0.018071, +0.043430]`.
+
+However, the selected guard did not suppress the zero-growth false activations. The false-activation class still had guarded gate active rate `1.000000` and mean gap `-0.020289`. The small test improvement came from suppressing a few short-interval active-growth cases, not from solving the growth-cessation problem.
+
+Interpretation:
+
+- the first-stage growth gate is useful and robust enough to keep;
+- simple scalar suppression rules are not sufficient to identify future growth cessation;
+- the remaining problem likely requires richer longitudinal state descriptors, treatment/timing context, image intensity cues, or a learned probability of future growth rather than thresholding previous-growth-derived budget alone.
+
+## July 12, 2026 - Growth Continuation Analysis Added
+
+The false-activation audit showed that simple scalar suppression guards cannot reliably identify cases where previous growth stops. The next analysis therefore shifts from gate tuning to longitudinal growth-state characterization.
+
+A growth-continuation analysis script was added to label each forecast sample as:
+
+- continued growth: previous growth active and future growth active;
+- stopped growth: previous growth active but future growth inactive;
+- newly active: previous growth inactive but future growth active;
+- stable: previous growth inactive and future growth inactive.
+
+The script compares stopped versus continued growth using prediction-time descriptors:
+
+- previous growth volume and relative previous growth;
+- previous interval days and forecast horizon gap;
+- input tumor volume;
+- treatment at input and previous session;
+- input morphology descriptors such as compactness, elongation, and connected components.
+
+This is intended to determine whether growth cessation has an observable signature before building a learned continuation classifier.
+
+## July 12, 2026 - Growth Continuation Analysis Result
+
+The growth-continuation analysis was run on SRD test with `min_growth_vox = 0`.
+
+Overall states:
+
+- continued growth: `97 / 123` (`78.86%`)
+- stopped growth: `14 / 123` (`11.38%`)
+- stable: `12 / 123` (`9.76%`)
+
+By tier:
+
+- Tier A: `48 / 48` continued growth under a strict `>0 voxel` definition.
+- Tier B: `20 / 39` continued, `13 / 39` stopped, `6 / 39` stable.
+- Tier C: `29 / 36` continued, `1 / 36` stopped, `6 / 36` stable.
+
+By horizon:
+
+- stopped growth increases with horizon: H1 `1 / 41`, H2 `5 / 41`, H3 `8 / 41`.
+- Tier B is the clearest cessation regime: stopped growth rises from `1 / 13` at H1 to `7 / 13` at H3.
+
+Stopped-versus-continued feature contrast:
+
+- stopped cases have longer future delta days than continued cases: median `146.5` vs `109.0` days, Cohen's d `0.646`.
+- stopped cases had no treatment at input, while continued cases had input treatment in about `18.6%` of samples; this is likely SRD-regime-specific rather than a biological conclusion.
+- stopped cases had higher median previous relative new growth: `0.3338` vs `0.2158`.
+- morphology differences were modest.
+
+Interpretation:
+
+The continuation analysis suggests that growth cessation is concentrated in Tier B and at longer horizons. Simple morphology/history features offer some weak signal but not a clean separation. The strict `>0 voxel` activity definition likely over-labels tiny Tier A changes as continued growth, so the next robustness step is to repeat continuation analysis with nonzero minimum growth thresholds before building a learned continuation classifier.
+
+## July 12, 2026 - Growth Continuation Threshold Sensitivity Result
+
+Growth-continuation analysis was repeated for minimum growth thresholds `0`, `50`, `100`, `250`, and `500` voxels.
+
+Main robustness finding:
+
+- Tier B and Tier C continuation structures are stable across thresholds.
+- Tier A is highly threshold-sensitive, meaning its apparent `continued_growth` at `>0` voxels is largely tiny mask drift or very small new growth.
+
+Tier-level behavior:
+
+- At threshold `0`, Tier A is `48 / 48` continued growth.
+- At threshold `100`, Tier A becomes mixed: continued `9 / 48`, newly active `14 / 48`, stable `19 / 48`, stopped `6 / 48`.
+- At threshold `250`, Tier A is mostly stable: stable `41 / 48`, newly active `4 / 48`, stopped `3 / 48`.
+- At threshold `500`, Tier A is mostly stable: stable `43 / 48`, newly active `2 / 48`, stopped `3 / 48`.
+- Tier B remains mixed with substantial stopped growth: at threshold `250`, continued `20 / 39`, stopped `13 / 39`, stable `6 / 39`; at threshold `500`, continued `20 / 39`, stopped `10 / 39`, stable `9 / 39`.
+- Tier C remains growth-continuing: at both `250` and `500`, continued `29 / 36`, stable `6 / 36`, stopped `1 / 36`.
+
+Overall state counts shift strongly with threshold:
+
+- threshold `0`: continued `97`, stable `12`, stopped `14`.
+- threshold `250`: continued `49`, stable `53`, stopped `17`, newly active `4`.
+- threshold `500`: continued `49`, stable `58`, stopped `14`, newly active `2`.
+
+Stopped-versus-continued contrast strengthens at meaningful thresholds:
+
+- at threshold `250`, stopped cases have smaller input volume than continued cases, Cohen's d about `1.05` in magnitude;
+- at threshold `250`, stopped cases have smaller previous new growth than continued cases, Cohen's d about `0.78` in magnitude;
+- at threshold `250`, stopped cases have longer future delta days, Cohen's d about `0.66`;
+- at threshold `500`, input treatment and treatment started at input show large differences, but this should be treated cautiously as SRD-specific.
+
+Interpretation:
+
+A meaningful-growth threshold is necessary. Thresholds around `250` to `500` voxels reveal the intended regime structure much better than a strict `>0 voxel` definition. Tier A behaves as mostly stable/small-change, Tier B behaves as mixed continuation/cessation, and Tier C behaves as mostly continuing growth. This supports using a nonzero activity threshold before training or evaluating a growth-continuation classifier.
+
+## July 12, 2026 - Growth-Activity Classifier Added
+
+After continuation-threshold sensitivity showed that meaningful growth should use a nonzero threshold, a simple validation-selected growth-activity classifier was added.
+
+Purpose:
+
+- predict whether future new growth exceeds a meaningful threshold, initially `250` voxels;
+- use only prediction-time descriptors;
+- train on train split, select model and probability threshold on validation, and evaluate once on held-out test.
+
+Candidate models:
+
+- class-balanced logistic regression;
+- shallow class-balanced decision trees;
+- small class-balanced random forest.
+
+Default features exclude synthetic tier and horizon unless explicitly requested. This keeps the first test closer to deployable descriptors rather than synthetic-regime labels.
+
+This is not yet plugged into the mask forecast. The first question is whether future growth activity is predictable at all from available descriptors.
+
+## July 12, 2026 - Growth-Activity Classifier Result and Transition Failure
+
+The growth-activity classifier was run with a meaningful future-growth threshold of `250` voxels.
+
+Output directory:
+
+- `/content/drive/MyDrive/synthetic_tumor_benchmark/outputs/srd_growth_activity_classifier_thr250_v1`
+
+Validation-selected model:
+
+- selected model: small class-balanced random forest;
+- validation balanced accuracy: `0.913952`;
+- validation F1: `0.924242`;
+- validation ROC AUC: `0.888332`.
+
+Held-out test performance:
+
+- accuracy: `0.829268`;
+- balanced accuracy: `0.840836`;
+- precision: `0.742424`;
+- recall: `0.924528`;
+- F1: `0.823529`;
+- ROC AUC: `0.944879`;
+- confusion matrix: TN `53`, FP `17`, FN `4`, TP `49`.
+
+Important subgroup result:
+
+- continued growth: `49 / 49` predicted active correctly;
+- stable: `53 / 53` predicted inactive correctly;
+- stopped growth: `17 / 17` predicted active incorrectly;
+- newly active: `4 / 4` predicted inactive incorrectly.
+
+Interpretation:
+
+The aggregate classifier result is strong but potentially misleading. It mostly learns persistence of the current growth state: previous active growth tends to remain active, and previous inactive growth tends to remain inactive. It does not yet solve the actual transition problem. In particular, it fails exactly where the gated ranked-growth policy needs help: stopped-growth cases, where previous growth exists but future growth is absent or below the meaningful threshold.
+
+Research implication:
+
+This is a useful negative/diagnostic result. The next necessary test is a focused continuation classifier restricted to previous-active cases. That experiment asks whether stopped growth can be separated from continued growth using prediction-time descriptors. If that focused classifier fails, then scalar descriptors are likely insufficient and we need richer image-derived or model-derived features for cessation detection.
+
+## July 12, 2026 - Previous-Active / Previous-Inactive Transition Classifier Results
+
+The growth-activity classifier was rerun with two focused subsets at `min_growth_vox = 250`:
+
+1. `previous_active`: distinguish continued growth from stopped growth;
+2. `previous_inactive`: distinguish stable cases from newly active growth.
+
+Output directories:
+
+- `/content/drive/MyDrive/synthetic_tumor_benchmark/outputs/srd_growth_activity_classifier_thr250_previous_active_v1`
+- `/content/drive/MyDrive/synthetic_tumor_benchmark/outputs/srd_growth_activity_classifier_thr250_previous_inactive_v1`
+
+### Previous-active result: continuation versus cessation
+
+Selected model:
+
+- small class-balanced random forest;
+- selected threshold: `0.433919`.
+
+Held-out test metrics:
+
+- count: `66`;
+- positive class = continued growth;
+- accuracy: `0.787879`;
+- balanced accuracy: `0.588235`;
+- precision: `0.777778`;
+- recall: `1.000000`;
+- F1: `0.875000`;
+- ROC AUC: `0.786315`;
+- confusion matrix: TN `3`, FP `14`, FN `0`, TP `49`;
+- specificity for stopped growth: `0.176471`.
+
+By continuation state:
+
+- continued growth: `49 / 49` predicted active correctly;
+- stopped growth: only `3 / 17` predicted inactive correctly, with `14 / 17` false activations.
+
+Interpretation:
+
+This confirms that the classifier mostly learns continuation, not cessation. Even after restricting to previous-active cases, the model strongly favors predicting continued growth. This directly explains why the gated ranked-growth policy still falsely activates in some zero-growth or stopped-growth cases.
+
+### Previous-inactive result: stable versus newly active
+
+Selected model:
+
+- class-balanced logistic regression;
+- selected threshold: `0.159688`.
+
+Held-out test metrics:
+
+- count: `57`;
+- positive class = newly active growth;
+- accuracy: `0.719298`;
+- balanced accuracy: `0.733491`;
+- precision: `0.166667`;
+- recall: `0.750000`;
+- F1: `0.272727`;
+- ROC AUC: `0.872642`;
+- confusion matrix: TN `38`, FP `15`, FN `1`, TP `3`;
+- specificity for stable cases: `0.716981`.
+
+By continuation state:
+
+- newly active: `3 / 4` detected;
+- stable: `38 / 53` protected, but `15 / 53` falsely activated.
+
+Interpretation:
+
+New activation appears more detectable than cessation, but the positive class is very rare. The classifier can recover most newly active cases, but only with substantial false positives. This is useful diagnostically, but not yet deployable as a clean gate.
+
+Research implication:
+
+The main unresolved problem is not broad future-growth activity. It is transition detection:
+
+- stopping after recent growth is difficult with current scalar descriptors;
+- new activation from apparent stability is detectable but noisy;
+- richer image-derived or uncertainty-derived features are likely needed before using a learned transition gate inside the forecasting policy.
+
+The next analysis should therefore avoid over-tuning scalar gates and instead inspect what information might identify stopped-growth cases: spatial residual shape, model uncertainty, intensity context, treatment timing/history, or learned probability calibration.
+
+## July 12, 2026 - Pivot From False-Positive Suppression to Delayed-Growth Hits
+
+After reviewing the stopped-growth classifier results, we reconsidered whether false-positive growth predictions should be treated as purely bad. In a tumor forecasting setting, false negatives can be more clinically concerning than false positives, especially if the model is interpreted as a growth-risk or attention-guidance field rather than a final binary segmentation.
+
+Important reframing:
+
+- immediate false positives may represent delayed, sub-threshold, or plausible future growth regions;
+- a prediction that misses the next scan may still be useful if the same region becomes tumor at a later scan;
+- Dice alone can penalize early warnings even when the predicted region is biologically or spatially plausible.
+
+A new delayed-hit analysis script was added:
+
+- `scripts/analyze_delayed_growth_hits.py`
+
+The script evaluates whether top-ranked candidate voxels outside the input tumor mask are:
+
+1. true growth at the immediate target scan;
+2. apparent immediate false positives that become tumor in later sessions;
+3. eventual growth from the input scan over the remaining follow-up window.
+
+It reports immediate precision, eventual precision, delayed-hit rate among immediate false positives, and eventual precision gain. It includes learned model scores, distance-to-input reference scores, random scores, and optional distance/model hybrid scores.
+
+Research question introduced:
+
+Are apparent short-horizon false positives actually early warnings of future growth, or are they merely over-expansion artifacts?
+
+This is a stronger and more clinically aligned test than simply suppressing all false activations.
+
+## July 12, 2026 - Delayed-Growth Hit Result
+
+The delayed-growth hit analysis was run on SRD test samples using U-Net, ResUNet, distance-to-input-mask, random scores, and distance/model hybrids.
+
+Output directory:
+
+- `/content/drive/MyDrive/synthetic_tumor_benchmark/outputs/srd_delayed_growth_hits_v1`
+
+Main finding:
+
+Apparent immediate false-positive growth predictions often overlap with tumor regions that appear in later sessions. This supports reframing some false positives as possible early-warning or risk-field predictions rather than treating them only as segmentation errors.
+
+Overall diagnostic results:
+
+- ResUNet, top immediate-growth-volume budget:
+  - immediate precision: `0.496508`;
+  - eventual precision: `0.616293`;
+  - eventual precision gain: `0.119785`;
+  - delayed hit rate among immediate false positives: `0.371297`.
+- U-Net, top immediate-growth-volume budget:
+  - immediate precision: `0.502414`;
+  - eventual precision: `0.604273`;
+  - eventual precision gain: `0.101859`;
+  - delayed hit rate among immediate false positives: `0.326317`.
+- Distance-to-input-mask, top immediate-growth-volume budget:
+  - immediate precision: `0.429999`;
+  - eventual precision: `0.529137`;
+  - eventual precision gain: `0.099139`;
+  - delayed hit rate among immediate false positives: `0.213002`.
+- Hybrid distance+ResUNet, top immediate-growth-volume budget:
+  - immediate precision: `0.540144`;
+  - eventual precision: `0.662738`;
+  - eventual precision gain: `0.122594`;
+  - delayed hit rate among immediate false positives: `0.373552`.
+
+Important nuance:
+
+The delayed-hit effect is not exclusively learned-model behavior. The distance-to-input-mask baseline also gains eventual precision, meaning part of the signal is explained by simple boundary-proximal growth. However, learned and hybrid scores provide stronger delayed-hit behavior under tighter growth-volume-style budgets, especially compared with the distance baseline.
+
+Tier and horizon structure:
+
+- delayed-hit signal is weak in Tier A because true growth volume is small;
+- signal is much stronger in Tier B and Tier C;
+- horizon 1 has the largest eventual precision gain because there are more later sessions available for delayed validation;
+- horizon 3 has less delayed-hit opportunity, so delayed gains are naturally smaller.
+
+Interpretation:
+
+This result supports evaluating tumor forecasting as a probabilistic growth-risk field in addition to hard Dice segmentation. A prediction that is false-positive at the immediate target may still be informative if it marks a region that becomes tumor later. The next step should distinguish ordinary over-expansion from genuine delayed-hit predictions, preferably through per-sample delayed-hit case inspection and a delayed-hit-versus-never-hit stratification.
+
+## July 12, 2026 - Delayed False-Positive Profile Result
+
+The delayed false-positive profile analysis was run to separate immediate false positives into:
+
+1. delayed-hit false positives: selected voxels not tumor at the immediate target scan but tumor later;
+2. never-hit false positives: selected voxels not tumor at the immediate target or later observed sessions.
+
+Output directory:
+
+- `/content/drive/MyDrive/synthetic_tumor_benchmark/outputs/srd_delayed_fp_profiles_v1`
+
+Important corrective finding:
+
+The delayed-hit story survives, but the voxel-weighted profile shows that boundary proximity explains a large part of the useful signal. The distance-to-input-mask baseline is extremely strong under voxel-weighted growth-volume budgets.
+
+For the `top_immediate_growth_volume` budget:
+
+- distance-to-input-mask:
+  - weighted immediate precision: `0.799419`;
+  - weighted eventual precision: `0.829165`;
+  - weighted eventual precision gain: `0.029745`;
+  - weighted delayed-FP fraction among immediate FPs: `0.148296`.
+- ResUNet:
+  - weighted immediate precision: `0.101388`;
+  - weighted eventual precision: `0.142728`;
+  - weighted eventual precision gain: `0.041340`;
+  - weighted delayed-FP fraction among immediate FPs: `0.046004`.
+- U-Net:
+  - weighted immediate precision: `0.095726`;
+  - weighted eventual precision: `0.137783`;
+  - weighted eventual precision gain: `0.042057`;
+  - weighted delayed-FP fraction among immediate FPs: `0.046509`.
+- Hybrid distance+ResUNet:
+  - weighted immediate precision: `0.230393`;
+  - weighted eventual precision: `0.379367`;
+  - weighted eventual precision gain: `0.148973`;
+  - weighted delayed-FP fraction among immediate FPs: `0.193571`.
+
+Distance structure:
+
+Across methods, delayed-hit false positives are much closer to the input tumor boundary than never-hit false positives. For example, for hybrid distance+ResUNet at the `top_immediate_growth_volume` budget, the mean distance of delayed false positives is about `2.43` voxels versus `5.11` voxels for never-hit false positives. For pure model scores, delayed false positives are also closer to the boundary than never-hit false positives.
+
+Interpretation:
+
+This result prevents overclaiming. The delayed-hit phenomenon is real in SRD, but it is not primarily evidence that the neural network is independently discovering distant future tumor. Much of the delayed-hit signal is a boundary-growth phenomenon. Learned/hybrid scores may still be useful for sample-level prioritization and some delayed-risk cases, but the strongest voxel-level prior is simple proximity to the current tumor.
+
+Research implication:
+
+A mature forecasting/risk-field method should explicitly include a growth-front or distance-to-boundary prior. The neural model should be framed as a correction or sharpening layer over that prior, not as a replacement for it. This also strengthens the argument that evaluation should report both sample-level and voxel-weighted summaries, because they answer different questions and can lead to different conclusions.
+
+## July 16, 2026 - SAILOR Distance-Only Delayed-Hit Stress Check
+
+A distance-only delayed-hit analysis was run on SAILOR test samples after model-probability ranking caused a Colab SIGKILL during full-volume inference.
+
+Output directory:
+
+- `/content/drive/MyDrive/synthetic_tumor_benchmark/outputs/sailor_real_stress_v1/delayed_hits_distance_only`
+
+Main result:
+
+The distance-to-current-mask growth-front prior shows strong delayed-hit behavior on SAILOR, far above random scoring.
+
+Overall, for the distance-to-input-mask baseline:
+
+- `top_0.01_candidate_fraction`:
+  - immediate precision: `0.205737`;
+  - eventual precision: `0.566667`;
+  - eventual precision gain: `0.360930`;
+  - delayed-hit rate among immediate false positives: `0.414153`.
+- `top_immediate_growth_volume`:
+  - immediate precision: `0.311227`;
+  - eventual precision: `0.695690`;
+  - eventual precision gain: `0.384463`;
+  - delayed-hit rate among immediate false positives: `0.524032`.
+
+For random scoring, eventual precision stayed near `0.027` to `0.028`, confirming that the distance effect is not merely due to high future-growth prevalence in the volume.
+
+Horizon structure:
+
+- top immediate-growth-volume distance prior:
+  - H1 eventual precision: `0.780976`, delayed-hit rate among immediate false positives: `0.647444`;
+  - H2 eventual precision: `0.722877`, delayed-hit rate: `0.579123`;
+  - H3 eventual precision: `0.583216`, delayed-hit rate: `0.345529`.
+
+Interpretation:
+
+This supports the real-data relevance of the growth-front/delayed-risk framing. Boundary-proximal regions that are false positives at the immediate scan often become tumor later in SAILOR. The finding is preliminary because the SAILOR test set has only 12 samples, but it is directionally consistent with the SRD delayed-hit analysis.
+
+Research implication:
+
+A distance-to-boundary growth-front prior should be treated as a central baseline and likely as a component of any modified forecasting method. The next technical bottleneck is obtaining model probability maps on SAILOR without full-volume memory failure, likely through cropping around the current tumor, downsampling, or one-sample inference.
+
+## July 16, 2026 - Cropped SAILOR Model-Ranking Utility Added
+
+The full-volume SAILOR model-ranking cell was killed by Colab (`SIGKILL`), most likely because loading full 3D volumes through the trained ResUNet checkpoints exceeded available memory.
+
+To avoid turning this into a hardware problem, we added a memory-safe cropped evaluation script:
+
+- `scripts/analyze_cropped_model_growth_ranking.py`
+
+Purpose:
+
+- run trained models only inside an input-mask-centered crop;
+- compare model, distance-to-input-mask, random, and distance+model hybrid ranking inside the same local candidate region;
+- report crop coverage so we know how much true future growth the crop actually contains;
+- keep this as a SAILOR stress-test utility rather than modifying the original SRD growth-ranking pipeline.
+
+Interpretation plan:
+
+This should tell us whether the learned SAILOR model probabilities add anything beyond the boundary-distance prior when inference is made feasible. If they do not, that is still useful: it would strengthen the conclusion that the growth-front prior is the dominant real-data signal and that learned models should be treated as correction/sharpening layers rather than standalone growth detectors.
+
+## July 16, 2026 - SAILOR Cropped Image+Mask Hybrid Ranking Check
+
+A memory-safe cropped SAILOR ranking analysis was run for `resunet_image_mask` and compared against the prior cropped `resunet_mask` run and the distance-to-input-mask growth-front prior.
+
+Output directory:
+
+- `/content/drive/MyDrive/synthetic_tumor_benchmark/outputs/sailor_real_stress_v1/cropped_model_ranking_resunet_image_mask_m48`
+
+Main overall ranking results on 12 SAILOR test samples:
+
+- distance-to-input-mask:
+  - mean AP: `0.279188`;
+  - recall at growth volume: `0.303252`;
+  - recall@1%: `0.610423`;
+  - recall@5%: `0.822788`.
+- ResUNet image+mask:
+  - mean AP: `0.297440`;
+  - recall at growth volume: `0.364521`;
+  - recall@1%: `0.567454`;
+  - recall@5%: `0.732567`.
+- hybrid distance + ResUNet image+mask, alpha `0.75`:
+  - mean AP: `0.334626`;
+  - recall at growth volume: `0.395149`;
+  - recall@1%: `0.591498`;
+  - recall@5%: `0.797094`.
+
+Paired sample-level comparison:
+
+- image model beats mask-only model AP in `9/12` samples;
+- image hybrid beats distance-only AP in `10/12` samples;
+- image hybrid beats mask-only hybrid AP in `9/12` samples;
+- image hybrid improves recall-at-growth-volume over distance in `11/12` samples.
+
+Interpretation:
+
+This is the strongest SAILOR evidence so far that image context adds useful ranking signal when combined with a growth-front prior. The distance prior remains extremely competitive for top-candidate recall, especially recall@5%, but the image-informed hybrid improves average precision and recall at the true growth-volume budget across most samples. This supports the current research framing: forecasting should not be treated as pure end-to-end mask prediction alone, but as persistence plus growth-front prior plus learned image/context correction.
+
+Caution:
+
+The SAILOR test set is still small (`n=12` samples), so these results should be treated as a real-data stress check rather than definitive clinical validation.
+
+## July 16, 2026 - SAILOR Cropped Hybrid Robustness Check
+
+A bootstrap, paired sign-permutation, and leave-one-patient-out robustness check was run for the cropped SAILOR image+mask hybrid ranking result.
+
+Bootstrap / paired checks on 12 SAILOR test samples:
+
+- image model vs mask-only model AP:
+  - mean gain: `0.063317`;
+  - 95% bootstrap CI: `[0.019691, 0.113531]`;
+  - positive samples: `9/12`;
+  - paired sign-permutation p-value: `0.0159`.
+- image hybrid vs distance-only AP:
+  - mean gain: `0.055439`;
+  - 95% bootstrap CI: `[0.023169, 0.087970]`;
+  - positive samples: `10/12`;
+  - paired sign-permutation p-value: `0.0081`.
+- image hybrid vs mask-only hybrid AP:
+  - mean gain: `0.071729`;
+  - 95% bootstrap CI: `[0.012185, 0.138970]`;
+  - positive samples: `9/12`;
+  - paired sign-permutation p-value: `0.0042`.
+- image hybrid vs distance-only recall-at-growth-volume:
+  - mean gain: `0.091898`;
+  - 95% bootstrap CI: `[0.054557, 0.130728]`;
+  - positive samples: `11/12`;
+  - paired sign-permutation p-value: `0.0011`.
+
+Leave-one-patient-out checks:
+
+Every comparison retained a positive mean gain after excluding any one of the four SAILOR patients. For image hybrid vs distance-only AP, leave-one-patient-out mean gains ranged from `0.045471` to `0.068063`. For image hybrid vs distance-only recall-at-growth-volume, leave-one-patient-out mean gains ranged from `0.079472` to `0.111967`.
+
+Interpretation:
+
+This materially strengthens the real-data evidence. The cropped image+mask hybrid improvement is not driven by a single SAILOR patient, and the paired gains remain positive under bootstrap and leave-one-patient-out perturbations. The result remains preliminary because the test set is small, but within this SAILOR stress check the direction of evidence is consistent: image/context-informed model scores add useful ranking signal on top of a boundary-distance growth-front prior.
+
+## July 16, 2026 - Hybrid Forecast Policy Evaluator Added
+
+Added and pushed:
+
+- `scripts/evaluate_hybrid_forecast_policy.py`
+
+Purpose:
+
+This script moves the project from analysis-only evidence toward a deployable method prototype. For each candidate score source, it selects a growth-budget rule on validation, selects a simple activation gate on validation, and evaluates the selected policy on held-out test.
+
+The intended policy family is:
+
+`future mask = current mask + gated top-ranked growth-front candidates`
+
+Candidate score sources can include:
+
+- `distance_to_input_mask`;
+- `resunet_image_mask`;
+- `hybrid_distance_resunet_image_mask_a0.75`.
+
+Important design choice:
+
+The script is validation-driven. It does not choose the budget or gate directly on test. This is meant to reduce the risk of overfitting the current SRD test set while still letting us evaluate whether the growth-front + image-context correction idea produces a usable forecast mask.
+
+## July 16, 2026 - SRD Hybrid Forecast Policy Prototype Result
+
+Ran the validation-selected hybrid forecast policy evaluator on SRD budget-sweep validation/test outputs.
+
+Output directory:
+
+- `/content/drive/MyDrive/synthetic_tumor_benchmark/outputs/srd_hybrid_forecast_policy_v1`
+
+Selected setup:
+
+- budget policy selected on validation for all score sources: `prev_growth_x1p5`;
+- gate selected on validation: `growth_budget_vox >= 2085`;
+- candidate score sources tested:
+  - `distance_to_input_mask`;
+  - `resunet_image_mask`;
+  - `hybrid_distance_resunet_image_mask_a0.75`.
+
+Held-out test overall:
+
+- distance policy:
+  - mean Dice: `0.770612`;
+  - LOCF mean Dice: `0.746955`;
+  - mean gap: `+0.023657`;
+  - bootstrap CI: `[0.012068, 0.034927]`.
+- ResUNet image+mask score policy:
+  - mean Dice: `0.776783`;
+  - mean gap: `+0.029828`;
+  - bootstrap CI: `[0.016403, 0.043160]`.
+- hybrid distance + ResUNet image+mask policy:
+  - mean Dice: `0.777026`;
+  - mean gap: `+0.030071`;
+  - bootstrap CI: `[0.016741, 0.043434]`.
+
+Regime behavior:
+
+- Tier A is protected: gap `0.000000`, gate active rate `0.000000`.
+- Tier B gains modestly: hybrid gap `+0.021451`.
+- Tier C gains more strongly: hybrid gap `+0.079503`.
+- Large-growth cases benefit most: hybrid gap `+0.118728`.
+- Small-growth cases are protected: gap `0.000000`.
+- Zero-growth cases still have a small harm: gap `-0.006243`, caused by false gate activations.
+
+Interpretation:
+
+The prototype confirms that the decomposition can produce a deployable improvement over LOCF without direct test-set policy tuning. The gate protects low-change Tier A cases and concentrates gains in Tier C and large-growth cases. However, the policy is not yet competitive with the direct ResUNet overlap benchmark from the compact SRD run (`~0.815` mean Dice). This means the current decomposition is analytically useful and deployable in a conservative sense, but the method is not yet the final forecasting model.
+
+Research implication:
+
+The next methodological bottleneck is budget/gating quality, not growth-front ranking alone. The hybrid score gives only a small improvement over ResUNet image+mask score under the same budget/gate, suggesting that ranking is useful but budget selection dominates final Dice. A stronger method will likely need either adaptive budget prediction, uncertainty-aware growth allocation, or a policy that allows both growth and shrinkage instead of only adding candidate growth to the persistence mask.
+
+## July 16, 2026 - Hybrid Policy vs Direct ResUNet Bottleneck Analysis Added
+
+Added and pushed:
+
+- `scripts/analyze_hybrid_vs_direct_model.py`
+
+Purpose:
+
+The hybrid forecast policy improves over LOCF but still trails the direct ResUNet Dice benchmark. This script diagnoses that gap sample-by-sample by comparing:
+
+- direct ResUNet Dice;
+- validation-selected hybrid policy Dice;
+- LOCF Dice;
+- growth volume;
+- loss/shrinkage volume;
+- net growth direction;
+- gate activation;
+- budget-to-growth ratio.
+
+Research question:
+
+Where does the direct model's advantage come from? Candidate explanations include better shrinkage/loss handling, better implicit growth budgeting, soft boundary correction, or cases where the hybrid gate is inactive/mis-budgeted.
+
+Why this matters:
+
+If direct ResUNet mainly wins on shrinkage/loss or boundary correction, then the next method should not simply add ranked growth to LOCF. It should become a fuller decomposition:
+
+`future mask = persistence core + shrinkage/loss correction + budgeted growth-front expansion`
+
+## July 16, 2026 - SRD Hybrid vs Direct ResUNet Bottleneck Result
+
+Ran the bottleneck analysis comparing the validation-selected hybrid forecast policy against direct ResUNet image+mask forecasts.
+
+Output directory:
+
+- `/content/drive/MyDrive/synthetic_tumor_benchmark/outputs/srd_hybrid_vs_direct_resunet_v1`
+
+Overall:
+
+- direct ResUNet mean Dice: `0.814833`;
+- hybrid policy mean Dice: `0.777026`;
+- LOCF mean Dice: `0.746955`;
+- direct minus hybrid mean Dice: `+0.037807`;
+- bootstrap CI for direct minus hybrid: `[0.023325, 0.054493]`;
+- direct beats hybrid in `57.7%` of samples;
+- hybrid beats direct in `35.0%` of samples.
+
+By absolute growth bin:
+
+- large nonzero growth:
+  - direct Dice: `0.934564`;
+  - hybrid Dice: `0.824713`;
+  - direct minus hybrid: `+0.109851`.
+- medium nonzero growth:
+  - direct minus hybrid: `+0.030002`.
+- small nonzero growth:
+  - direct minus hybrid: `-0.002425`, meaning the hybrid slightly outperforms direct ResUNet on average.
+- zero growth:
+  - direct minus hybrid: `+0.008561`, with hybrid still hurt by false gate activation.
+
+By net growth direction:
+
+- net-growth cases:
+  - direct minus hybrid: `+0.045781`.
+- net-shrinkage cases:
+  - direct minus hybrid: `+0.014186`.
+- net-stable cases:
+  - no difference; all methods perfect.
+
+Gate activity:
+
+- inactive gate cases:
+  - direct minus hybrid: `+0.029730` because the hybrid falls back to LOCF while direct ResUNet can still make useful corrections.
+- active gate cases:
+  - direct minus hybrid: `+0.050428`, indicating that even when the hybrid activates, the direct model has better growth allocation/shape correction.
+
+Correlations with direct-model advantage:
+
+- strongest Spearman correlations:
+  - relative new growth: `0.463840`;
+  - growth volume: `0.443620`;
+  - growth-to-loss ratio: `0.426018`;
+  - net delta volume: `0.416230`.
+- loss volume and relative loss are weakly correlated with direct advantage.
+
+Interpretation:
+
+This result changes the bottleneck diagnosis. The direct ResUNet advantage is not primarily due to shrinkage/loss correction. It is strongest in large-growth and net-growth cases, meaning the direct model is likely doing a better job with growth magnitude, soft boundary allocation, or shape-consistent expansion than the hard top-k hybrid policy. The hybrid policy protects small-growth cases and improves over LOCF, but its hard budgeted growth addition is too crude for large-growth cases.
+
+Research implication:
+
+The next method should not only add a shrinkage module. The more important next step is a softer growth allocation mechanism: use the growth-front/image-context ranking as a probability or risk field, but let the model infer spatially coherent growth magnitude rather than enforcing a hard previous-growth top-k budget. A future method could still include shrinkage/loss correction, but the current evidence says growth magnitude and shape allocation are the dominant bottlenecks.
+
+## July 16, 2026 - Low-Growth Operating-Regime Analysis Added
+
+Added and pushed:
+
+- `scripts/analyze_low_growth_operating_regime.py`
+
+Motivation:
+
+The hybrid policy trails direct ResUNet overall, especially on large-growth cases. However, for short-term forecasting, many cases may be low-growth or near-persistent. In that setting, a conservative hybrid policy can still be valuable if it protects LOCF-like behavior and avoids unnecessary neural overcorrection.
+
+Purpose:
+
+This script uses the bottleneck output to quantify:
+
+- how often low-growth cases occur by horizon;
+- whether the hybrid policy is preferable to direct ResUNet in low-growth cases;
+- whether the hybrid preserves LOCF behavior in low-growth cases;
+- best-method counts across growth bins and horizon-growth bins.
+
+Important framing:
+
+The defensible claim should not be that the hybrid improves Dice over LOCF in low-growth cases. The more precise claim is that the hybrid can preserve persistence in low-growth regimes and may be preferable to direct neural forecasting when direct models overcorrect.
+
+## July 16, 2026 - Low-Growth Operating-Regime Result
+
+Ran the low-growth operating-regime analysis using the SRD hybrid-vs-direct bottleneck output.
+
+Output directory:
+
+- `/content/drive/MyDrive/synthetic_tumor_benchmark/outputs/srd_low_growth_operating_regime_v1`
+
+Overall operating mix:
+
+- total samples: `123`;
+- low-growth rate using `zero + small_nonzero`: `0.471545`;
+- H1 low-growth rate: `0.439024`;
+- H2 low-growth rate: `0.487805`;
+- H3 low-growth rate: `0.487805`.
+
+Low-growth subset overall (`zero + small_nonzero`, n=`58`):
+
+- LOCF Dice: `0.694602`;
+- hybrid Dice: `0.691804`;
+- direct ResUNet Dice: `0.694303`;
+- hybrid minus direct: `-0.002500`, bootstrap CI `[-0.011346, 0.003810]`;
+- hybrid minus LOCF: `-0.002799`, CI `[-0.008396, ~0]`.
+
+This means the broad low-growth bucket does not support a claim that hybrid is better overall. It is essentially comparable but slightly below LOCF/direct because zero-growth false activation can hurt.
+
+Short-horizon low-growth subset (H1 + zero/small_nonzero, n=`18`):
+
+- LOCF Dice: `0.879135`;
+- hybrid Dice: `0.879135`;
+- direct ResUNet Dice: `0.873675`;
+- hybrid minus direct: `+0.005459`, bootstrap CI `[0.000207, 0.011516]`;
+- hybrid minus LOCF: `0.000000`;
+- direct minus LOCF: `-0.005459`, CI `[-0.011516, -0.000207]`.
+
+Best-method counts:
+
+- small nonzero cases: hybrid best in `19/32` (`59.4%`), direct best in `13/32` (`40.6%`);
+- zero cases: hybrid best in `15/26` (`57.7%`), direct best in `10/26` (`38.5%`), LOCF best in `1/26` (`3.8%`).
+- H1 zero cases: hybrid best in `5/5` cases.
+- H1 small-nonzero cases: hybrid best in `8/13` (`61.5%`).
+
+Interpretation:
+
+The correct claim is narrower and stronger: in the short-horizon low-growth operating regime, the hybrid preserves LOCF/persistence and avoids the direct ResUNet overcorrection penalty. This supports a selective regime-aware policy, but not a broad claim that hybrid dominates all low-growth cases. For all low-growth cases pooled across horizons, the hybrid is approximately comparable but not superior because false activation in zero-growth cases can still hurt.
+
+Research implication:
+
+The method direction should emphasize selective operating regimes. Direct ResUNet is preferable in large-growth cases. Hybrid/persistence-aware behavior is preferable in short-horizon low-growth cases. A future deployable method should learn or infer this operating regime rather than forcing one forecasting behavior across all samples.
+
+## July 19, 2026 - Additive Growth-Field Control Against Threshold-Tuned Direct ResUNet
+
+A validation-threshold-tuned direct ResUNet control was run to test whether the additive growth-field improvement was merely a threshold-calibration artifact.
+
+Outputs reviewed:
+
+- `/content/drive/MyDrive/synthetic_tumor_benchmark/outputs/srd_direct_threshold_control_v1`
+- `/content/drive/MyDrive/synthetic_tumor_benchmark/outputs/srd_calibrated_growth_field_v1/growth_field_vs_tuned_direct_*`
+
+Direct threshold control:
+
+- validation selected direct ResUNet threshold: `0.70`
+- tuned direct ResUNet test Dice: `0.814331`
+- default direct ResUNet test Dice: `0.814833`
+- tuned direct vs default direct gap: `-0.000502`
+- bootstrap CI for tuned direct vs default direct: `[-0.002017, 0.001004]`
+
+Thus, validation threshold tuning does not explain the additive growth-field result.
+
+Additive growth field vs tuned direct ResUNet:
+
+- raw model-probability growth field Dice: `0.818525`
+- tuned direct ResUNet Dice: `0.814331`
+- paired gap vs tuned direct: `+0.004194`
+- bootstrap CI: `[+0.001778, +0.006699]`
+- win rate vs tuned direct: `0.617886`
+- mean selected voxels: growth field `3283.40`, tuned direct `9997.44`
+
+Calibrated growth field vs tuned direct:
+
+- calibrated growth-field Dice: `0.817888`
+- paired gap vs tuned direct: `+0.003557`
+- bootstrap CI: `[+0.001052, +0.006152]`
+- win rate vs tuned direct: `0.544715`
+
+By growth bin for raw model-probability growth field vs tuned direct:
+
+- `large_nonzero`: `+0.006296`, win rate `0.522727`
+- `medium_nonzero`: `+0.006943`, win rate `1.000000`
+- `small_nonzero`: `+0.006170`, win rate `0.931818`
+- `zero`: `-0.003658`, win rate `0.115385`
+
+Interpretation:
+
+The additive growth-field formulation appears to be a real structural improvement, not just threshold tuning. It preserves the current observed tumor and adds learned probable-growth voxels, producing a small but stable gain over both default direct ResUNet and threshold-tuned direct ResUNet. The improvement is clearest in nonzero-growth cases, including small-growth cases, while the remaining weakness is true zero-growth where the growth field can still add unnecessary voxels.
+
+Current methodological statement:
+
+`future tumor = observed current tumor + learned growth field`
+
+This gives a more interpretable persistence-preserving forecasting formulation than full future-mask regeneration. The next critical stage is to test this formulation on a fuller SAILOR setup using patient-level splits and sliding longitudinal windows rather than the earlier tiny 4-patient / 12-sample stress check.
+
+## July 19, 2026 - Pivot From SRD Controls to Fuller SAILOR Window Audit
+
+After the additive growth-field method beat both default direct ResUNet and validation-threshold-tuned direct ResUNet on SRD, the next research step was defined as a fuller SAILOR real-data audit rather than additional SRD refinements.
+
+Rationale:
+
+- The earlier SAILOR experiments used only a tiny 4-patient / 12-sample stress check.
+- The local TaDiff code confirms that SAILOR is treated as a longitudinal dataset with approximately 25 valid patients and random contiguous 4-session windows.
+- Sliding windows can increase real-data forecast samples, but must preserve patient-level train/validation/test splits to avoid leakage.
+
+Planned audit:
+
+- enumerate sliding longitudinal windows for input lengths `3,4,5` and configurable horizons;
+- report patient counts, session counts, follow-up days, interval distributions, treatment changes, LOCF Dice, future growth volume, and growth bins;
+- summarize by patient, input-window length, horizon, growth bin, and net growth/shrinkage direction.
+
+A new script was added:
+
+- `scripts/audit_longitudinal_windows.py`
+
+This script is intended to map the fuller SAILOR real-data forecasting opportunity before training or testing modified forecasting methods.
+
+## July 19, 2026 - Fuller SAILOR Longitudinal Window Audit Reviewed
+
+A fuller SAILOR sliding-window audit was run using input lengths `3,4,5`, horizon `1`, and all available patients in the processed SAILOR folder.
+
+Output directory:
+
+- `/content/drive/MyDrive/synthetic_tumor_benchmark/outputs/sailor_longitudinal_window_audit_v1`
+
+Main audit findings:
+
+- patient summary listed `26` processed patients, while `25` patients produced valid forecast windows because `sub-19` has only 3 sessions and cannot produce a 3-input to next-session forecast window.
+- total enumerated windows across input lengths `3,4,5`: `406`
+- windows are not independent; they are overlapping windows from the same patients.
+- overall LOCF Dice across all enumerated windows: mean `0.655169`, median `0.707335`
+- mean target delta: `84.60` days, median `89` days
+- mean future new-growth volume: `29834.93` voxels, median `12642.5` voxels
+- most windows fall into `large_nonzero`: `357/406`
+- `medium_nonzero`: `44/406`
+- `small_nonzero`: `5/406`
+- no `zero` growth windows under the current new-growth definition, because even net-shrinkage cases can contain spatially new voxels.
+- net-direction split: `223` net-growth windows and `183` net-shrinkage windows.
+
+Interpretation:
+
+The fuller SAILOR data substantially improves the real-data opportunity compared with the earlier 4-patient / 12-sample stress check. However, the window count should not be treated as independent sample size. Splits and uncertainty must be patient-level. The audit also shows that SAILOR is dominated by spatial new-growth windows under the current growth definition, unlike SRD where zero/small-growth regimes were common and analytically important.
+
+Important cleanup required before model testing:
+
+1. choose a single primary window protocol, likely input length `3` and horizon `1`, to match the current short-horizon framing;
+2. decide whether to exclude TaDiff QC-questionable patients `sub-13` and `sub-23`;
+3. report patient counts separately from window counts;
+4. define growth states more carefully for SAILOR using both spatial new-growth and net volume direction, since `zero_growth_rate=0` under the current spatial-new-growth definition.
+
+Next planned step:
+
+Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-compatible patient subset excluding `sub-13`, `sub-23`, and naturally excluding `sub-19` from windows due to insufficient sessions. Then define patient-level train/validation/test splits for the fuller real-data method test.
+
+## 2026-07-19 - Clean SAILOR Longitudinal Window Audit
+
+- Reviewed the cleaned SAILOR input-3 to next-scan longitudinal audit.
+- Usable setup after excluding QC-questionable subjects: 136 forecasting windows across 23 patients.
+- Overall LOCF Dice is 0.6394 mean / 0.6901 median, with mean next-scan interval 74.5 days and median interval 84 days.
+- The cohort is dominated by spatial new-growth windows: 129/136 windows fall into the large nonzero spatial new-growth bin; zero spatial-growth windows are absent.
+- Net direction remains mixed: 75 windows show net growth and 61 show net shrinkage. LOCF is harder in net-growth windows (mean Dice 0.6076) and easier in net-shrinkage windows (mean Dice 0.6786).
+- Interpretation: SAILOR is now large enough for a careful real-data stress test using patient-level splits, but it is not a clean zero-growth/persistence dataset. Any additive growth-field method must be evaluated against direct forecasting and must explicitly track net-growth versus net-shrinkage behavior.
+- Immediate implication: before training/testing modified methods on SAILOR, define patient-level splits and keep patient-level uncertainty in all summaries to avoid over-counting overlapping windows.
+
+## 2026-07-19 - SAILOR Patient Split First-Pass Critique
+
+- Reviewed the first patient-level train/validation/test split from the clean SAILOR input-3/horizon-1 audit.
+- The first split was leakage-safe, but not sufficiently balanced for method testing: train had 14 patients but only 50 windows, while validation/test had 40/46 windows; test also had easier LOCF performance and lower relative new-growth than train/validation.
+- Decision: do not use this first greedy split as the main experimental split. It is useful only as a diagnostic.
+- Updated the split-manifest tool to search many seeded patient-level assignments and optimize global balance across window count, LOCF difficulty, net-growth burden, relative new-growth, delta days, and treatment-change burden while preserving patient-level separation.
+
+## 2026-07-19 - Accepted SAILOR Patient Split v2
+
+- Reviewed the regenerated SAILOR input-3/horizon-1 patient-level split (`sailor_h1_l3_patient_splits_v2`).
+- This split is substantially more balanced than the first greedy split and is acceptable as the first real-data method-test foundation.
+- Overall windows/patients: train 82 windows / 14 patients, validation 28 / 5, test 26 / 4.
+- LOCF difficulty is now comparable: train mean 0.6458, validation 0.6163, test 0.6443.
+- Net-growth burden is comparable: train 0.5488, validation 0.5357, test 0.5769.
+- Relative spatial new-growth is comparable: train 1.1033, validation 1.1323, test 1.0107.
+- Remaining limitation: validation contains only large-nonzero spatial-growth windows, while test contains medium/small cases; however the rare medium/small cases are too sparse for perfect balancing. Main reporting should emphasize net-growth versus net-shrinkage rather than small/medium/large spatial-growth bins on SAILOR.
+- Decision: use v2 for the first SAILOR model stress test, with patient-level uncertainty and stratification by net direction.
+
+## 2026-07-19 - SAILOR Manifest ResUNet vs LOCF First Result
+
+- Completed first SAILOR patient-level manifest baseline comparison using input length 3, horizon 1, split v2.
+- LOCF: validation mean Dice 0.6163, test mean Dice 0.6443.
+- ResUNet image+mask, 12 epochs, seed 42: validation mean Dice 0.6338, test mean Dice 0.6465.
+- Overall paired gain is small: validation +0.0175, test +0.0022.
+- Regime split is much clearer:
+  - Net-growth windows: validation +0.0340 with 100% win rate; test +0.0310 with 80% win rate.
+  - Net-shrinkage windows: validation -0.0016; test -0.0371.
+- Interpretation: learned forecasting signal exists on SAILOR, but it is direction-dependent. Direct ResUNet improves growth cases and can damage shrinkage cases. This supports moving from a single direct-mask forecast toward a direction/transition-aware forecasting policy.
+- Important caution: do not claim overall SAILOR superiority yet. The honest result is conditional: model useful on net-growth windows, unreliable on shrinkage windows.
+
+## 2026-07-19 - Direction-Gated SAILOR Policy Script
+
+- Added a direction-gated policy evaluator for SAILOR manifest experiments.
+- Policy idea: train a simple logistic gate using only pre-forecast input-history descriptors to predict whether the next transition is net-growth. If predicted net-growth, use ResUNet; otherwise use LOCF.
+- Features intentionally exclude future growth, future target volume, and future Dice. Current features: input window length/span, delta days, input treatment, input volume, previous growth/loss volume, previous growth ratio, and treatment change within the input window.
+- The script trains on train windows, selects probability threshold on validation by policy Dice, and reports validation/test policy performance, classifier metrics, by-net-direction summaries, by-patient summaries, and patient-bootstrap CIs.
+- This directly tests whether the SAILOR oracle headroom can be approximated without future leakage.
+
+## 2026-07-19 - SAILOR Direction Gate v1 Result
+
+- Ran the first non-oracle direction-gated policy on SAILOR manifest split v2.
+- The validation-selected threshold was 0.05, causing the gate to predict net-growth for every validation and test case.
+- Therefore the gated policy collapsed to direct ResUNet: validation 0.6338, test 0.6465.
+- This failed to recover oracle headroom on test: oracle test mean was 0.6622, while direct/gated ResUNet was 0.6465 and LOCF was 0.6443.
+- Classifier AUC was non-random but weak: validation 0.6513 and test 0.6364. Balanced accuracy at the selected threshold was 0.5 because shrinkage cases were all falsely predicted as growth.
+- Interpretation: input-history features contain some direction signal, but selecting the threshold directly by validation Dice is too permissive because validation shrinkage harm was tiny. The next diagnostic should evaluate stricter/safety-first thresholds that trade off growth recall against shrinkage false positives.
+
+## 2026-07-19 - Direction Gate Threshold Sweep Diagnostic
+
+- Reviewed manual threshold sweep for the SAILOR direction gate.
+- Validation Dice is maximized by low thresholds that effectively use ResUNet everywhere; safety-constrained thresholds reduce shrinkage false-growth firing but also lose too many true growth cases.
+- Test does improve modestly at stricter thresholds: threshold 0.55/0.60 gives test policy mean 0.6512 versus LOCF 0.6443 and ResUNet 0.6465. Threshold 0.80/0.85 gives 0.6507, but with very low growth recall.
+- However, these thresholds are not selected by the validation policy objective; they are visible only after inspecting test behavior. Therefore they cannot be claimed as a validated deployable gate.
+- Interpretation: input-history direction gating alone is weak/unstable. The better next step is to use inference-time model-derived geometry, e.g., predicted target volume, predicted net volume change, predicted growth/loss volume, and probability mass, to decide when a direct model should be trusted or suppressed.
+
+## 2026-07-19 - SAILOR Model-Geometry Gate Result
+
+- Ran model-derived geometry gating on the SAILOR manifest ResUNet checkpoint.
+- Validation selected `pred_relative_net_delta >= -0.5`, which uses ResUNet for every case. Therefore the geometry-gated policy collapsed to direct ResUNet, same as the input-history gate.
+- Geometry-gated policy: validation 0.6338, test 0.6465; LOCF test 0.6443; oracle direction policy test 0.6622.
+- By net direction, the same pattern remains: ResUNet helps net-growth windows (+0.0310 test) and hurts net-shrinkage windows (-0.0371 test), but the geometry scores do not reliably identify shrinkage cases under validation-selected thresholds.
+- Manual test sweep shows no robust geometry threshold that improves meaningfully over direct ResUNet; several stricter thresholds reduce use-model rate but also drop growth recall and often lower test Dice.
+- Interpretation: simple post-hoc gating using either input-history features or model-predicted geometry is not enough. The next method branch should target the structural limitation directly: a shrinkage-aware / residual-change formulation, rather than trying to choose between LOCF and a direct full-mask model after the fact.
+
+## 2026-07-19 - SAILOR Transition Error Decomposition Result
+
+- Reviewed transition-level error decomposition for direct ResUNet on SAILOR manifest split v2.
+- Direct ResUNet still preserves stable tumor core well: stable-core recall is about 0.979 overall and about 0.986 on test net-shrinkage windows.
+- The model is not primarily failing by deleting stable core. Instead, two distinct limitations appear:
+  1. It underpredicts true new growth volume: on test, true spatial growth averages 20,789 voxels while predicted growth averages 6,664 voxels; growth recall is only about 0.34 overall.
+  2. It severely underpredicts true loss/shrinkage: on test, true loss averages 10,646 voxels while predicted loss averages 2,565 voxels; loss recall is only about 0.12 overall.
+- In net-growth windows, ResUNet improves Dice despite missing large amounts of true growth because even partial growth localization improves over LOCF.
+- In net-shrinkage windows, ResUNet hurts Dice mostly because it adds false outside growth and still does not remove enough lost tumor; test shrinkage growth precision is low (0.27), and predicted loss volume is far below true loss volume.
+- Method implication: the next model should not be merely a post-hoc gate. It should explicitly forecast residual change with separate growth and loss/shrinkage heads, reconstructing future mask as `(input AND NOT loss) OR growth`.
+
+## 2026-07-19 - Residual-Change SAILOR Runtime Diagnostic
+
+- Attempted to train the residual growth/loss SAILOR model on full-resolution SAILOR volumes using an L4 GPU, but the Colab cell produced no progress output after a long wait.
+- Local copy diagnostics showed Google Drive I/O was a major contributor but not the only bottleneck: loading `sub-02_image.npy` from Drive took about 39 seconds, while loading the local copy took about 6.5 seconds.
+- Full SAILOR volumes are large (`229 x 193 x 193`) and image arrays are stored as flattened session-by-modality blocks, so a direct full-volume image+mask residual run is much heavier than SRD experiments.
+- Updated the residual-change runner to support staged, observable experiments: correct session/modality image reshaping, optional spatial downsampling, train/validation/evaluation sample caps, and per-batch progress printing.
+- Interpretation: do not treat the silent long run as evidence against the residual-change idea. It is an execution-design problem. We should first validate correctness with a capped/downsampled smoke test, then scale carefully to larger runs.

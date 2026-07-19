@@ -69,8 +69,11 @@ class ResidualChangeDataset:
         dataset_root: str | Path,
         samples: List[ForecastSample],
         input_mode: str,
+        spatial_stride: int = 1,
         cache_arrays: bool = True,
     ) -> None:
+        if spatial_stride < 1:
+            raise ValueError("spatial_stride must be >= 1.")
         self.base = _TorchForecastDataset(
             dataset_root=dataset_root,
             samples=samples,
@@ -78,6 +81,7 @@ class ResidualChangeDataset:
             cache_arrays=cache_arrays,
         )
         self.samples = samples
+        self.spatial_stride = int(spatial_stride)
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -94,6 +98,12 @@ class ResidualChangeDataset:
         growth = (target_mask & ~input_mask).astype(np.float32)
         loss = (input_mask & ~target_mask).astype(np.float32)
         y_change = np.concatenate([growth, loss], axis=0).astype(np.float32)
+        if self.spatial_stride > 1:
+            s = self.spatial_stride
+            x = x[:, ::s, ::s, ::s]
+            target = target[:, ::s, ::s, ::s]
+            y_change = y_change[:, ::s, ::s, ::s]
+            input_mask = input_mask[:, ::s, ::s, ::s]
         return x, torch.from_numpy(y_change), target, torch.from_numpy(input_mask.astype(np.float32)), idx
 
 
@@ -187,6 +197,12 @@ def summarize(df: pd.DataFrame, group_cols: List[str]) -> pd.DataFrame:
     return out
 
 
+def limit_samples(samples: List[ForecastSample], max_samples: int | None) -> List[ForecastSample]:
+    if max_samples is None or max_samples <= 0 or max_samples >= len(samples):
+        return samples
+    return samples[:max_samples]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train residual growth/loss forecasting baseline on a longitudinal manifest.")
     parser.add_argument("--dataset_root", type=str, required=True)
@@ -201,6 +217,11 @@ def main() -> None:
     parser.add_argument("--learning_rate", type=float, default=2e-4)
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--base_channels", type=int, default=12)
+    parser.add_argument("--spatial_stride", type=int, default=1)
+    parser.add_argument("--max_train_samples", type=int, default=0)
+    parser.add_argument("--max_val_samples", type=int, default=0)
+    parser.add_argument("--max_eval_samples_per_split", type=int, default=0)
+    parser.add_argument("--progress_every", type=int, default=10)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", type=str, default="auto")
     parser.add_argument("--thresholds", type=str, default="0.20,0.30,0.40,0.50,0.60,0.70,0.80")
@@ -223,12 +244,33 @@ def main() -> None:
     eval_splits = [s.strip() for s in args.eval_splits.split(",") if s.strip()]
     thresholds = [float(x.strip()) for x in args.thresholds.split(",") if x.strip()]
 
-    train_samples = build_samples_from_manifest(manifest, args.train_split)
-    val_samples = build_samples_from_manifest(manifest, args.val_split)
-    train_ds = ResidualChangeDataset(dataset_root, train_samples, args.input_mode)
-    val_ds = ResidualChangeDataset(dataset_root, val_samples, args.input_mode)
+    train_samples_all = build_samples_from_manifest(manifest, args.train_split)
+    val_samples_all = build_samples_from_manifest(manifest, args.val_split)
+    train_samples = limit_samples(train_samples_all, args.max_train_samples)
+    val_samples = limit_samples(val_samples_all, args.max_val_samples)
+    print(
+        "[INFO] Residual-change setup | "
+        f"train={len(train_samples)}/{len(train_samples_all)} "
+        f"val={len(val_samples)}/{len(val_samples_all)} "
+        f"input_mode={args.input_mode} spatial_stride={args.spatial_stride}",
+        flush=True,
+    )
+    train_ds = ResidualChangeDataset(
+        dataset_root,
+        train_samples,
+        args.input_mode,
+        spatial_stride=args.spatial_stride,
+    )
+    val_ds = ResidualChangeDataset(
+        dataset_root,
+        val_samples,
+        args.input_mode,
+        spatial_stride=args.spatial_stride,
+    )
+    print("[INFO] Loading first training sample to infer model shape...", flush=True)
     sample_x, _, _, _, _ = train_ds[0]
     in_channels = int(sample_x.shape[0])
+    print(f"[INFO] First input tensor shape: {tuple(sample_x.shape)}", flush=True)
 
     model = _build_torch_model(
         in_channels=in_channels,
@@ -241,6 +283,7 @@ def main() -> None:
     else:
         dev = torch.device(args.device)
     model.to(dev)
+    print(f"[INFO] Device: {dev} | model={args.model_variant} base_channels={args.base_channels}", flush=True)
 
     train_loader = DataLoader(
         train_ds,
@@ -266,7 +309,7 @@ def main() -> None:
         model.train()
         train_loss_sum = 0.0
         train_count = 0
-        for x, y_change, _, _, _ in train_loader:
+        for batch_i, (x, y_change, _, _, _) in enumerate(train_loader, start=1):
             x = x.to(dev, non_blocking=True)
             y_change = y_change.to(dev, non_blocking=True)
             logits = model(x)
@@ -277,7 +320,14 @@ def main() -> None:
             bs = int(x.shape[0])
             train_loss_sum += float(loss.item()) * bs
             train_count += bs
+            if args.progress_every > 0 and (batch_i == 1 or batch_i % args.progress_every == 0):
+                print(
+                    f"[Epoch {ep:03d}] batch={batch_i}/{len(train_loader)} "
+                    f"loss={float(loss.item()):.4f}",
+                    flush=True,
+                )
 
+        print(f"[Epoch {ep:03d}] evaluating validation reconstruction...", flush=True)
         val_eval = evaluate_model(model, val_loader, val_samples, dev, 0.5, 0.5)
         val_dice = float(val_eval["dice"].mean())
         row = {
@@ -286,7 +336,11 @@ def main() -> None:
             "val_reconstruct_dice": val_dice,
         }
         history.append(row)
-        print(f"[Epoch {ep:03d}] train_loss={row['train_loss']:.4f} val_reconstruct_dice={val_dice:.4f}")
+        print(
+            f"[Epoch {ep:03d}] train_loss={row['train_loss']:.4f} "
+            f"val_reconstruct_dice={val_dice:.4f}",
+            flush=True,
+        )
         if val_dice > best_val_dice:
             best_val_dice = val_dice
             torch.save(
@@ -324,8 +378,18 @@ def main() -> None:
 
     eval_rows = []
     for split in eval_splits:
-        samples = build_samples_from_manifest(manifest, split)
-        ds = ResidualChangeDataset(dataset_root, samples, args.input_mode)
+        samples_all = build_samples_from_manifest(manifest, split)
+        samples = limit_samples(samples_all, args.max_eval_samples_per_split)
+        print(
+            f"[INFO] Evaluating split={split} samples={len(samples)}/{len(samples_all)}",
+            flush=True,
+        )
+        ds = ResidualChangeDataset(
+            dataset_root,
+            samples,
+            args.input_mode,
+            spatial_stride=args.spatial_stride,
+        )
         loader = DataLoader(ds, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=(dev.type == "cuda"))
         part = evaluate_model(model, loader, samples, dev, best_growth_thr, best_loss_thr)
         part["split"] = split
@@ -343,10 +407,16 @@ def main() -> None:
         "val_split": args.val_split,
         "eval_splits": eval_splits,
         "n_train_samples": len(train_samples),
+        "n_train_samples_full": len(train_samples_all),
         "n_val_samples": len(val_samples),
+        "n_val_samples_full": len(val_samples_all),
         "epochs": int(args.epochs),
         "batch_size": int(args.batch_size),
         "learning_rate": float(args.learning_rate),
+        "spatial_stride": int(args.spatial_stride),
+        "max_train_samples": int(args.max_train_samples),
+        "max_val_samples": int(args.max_val_samples),
+        "max_eval_samples_per_split": int(args.max_eval_samples_per_split),
         "seed": int(args.seed),
         "best_val_reconstruct_dice_at_0p5": float(best_val_dice),
         "selected_growth_threshold": best_growth_thr,
