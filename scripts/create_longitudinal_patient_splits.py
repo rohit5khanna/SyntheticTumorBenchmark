@@ -85,14 +85,8 @@ def build_patient_table(windows: pd.DataFrame) -> pd.DataFrame:
     return patient
 
 
-def greedy_assign(patient: pd.DataFrame, fracs: Dict[str, float], seed: int) -> pd.DataFrame:
-    rng = np.random.default_rng(seed)
+def compute_patient_quota(n_patients: int, fracs: Dict[str, float]) -> Dict[str, int]:
     split_names = ["train", "val", "test"]
-    n_patients = len(patient)
-    total_windows = float(patient["n_windows"].sum())
-    total_net_growth = float(patient["net_growth_windows"].sum())
-    total_treat = float(patient["target_treatment_change_windows"].sum())
-
     raw_counts = {split: fracs[split] * n_patients for split in split_names}
     patient_quota = {split: int(np.floor(raw_counts[split])) for split in split_names}
     for split in split_names:
@@ -104,61 +98,90 @@ def greedy_assign(patient: pd.DataFrame, fracs: Dict[str, float], seed: int) -> 
     while sum(patient_quota.values()) < n_patients:
         split = max(split_names, key=lambda s: (raw_counts[s] - patient_quota[s], s == "train"))
         patient_quota[split] += 1
+    return patient_quota
 
-    targets = {
-        split: {
-            "patients": float(patient_quota[split]),
-            "windows": max(1.0, fracs[split] * total_windows),
-            "net_growth": max(1.0, fracs[split] * total_net_growth) if total_net_growth > 0 else 0.0,
-            "treat": max(1.0, fracs[split] * total_treat) if total_treat > 0 else 0.0,
-        }
-        for split in split_names
+
+def score_assignment(assigned: pd.DataFrame, fracs: Dict[str, float], patient_quota: Dict[str, int]) -> float:
+    split_names = ["train", "val", "test"]
+    totals = {
+        "n_windows": float(assigned["n_windows"].sum()),
+        "net_growth_windows": float(assigned["net_growth_windows"].sum()),
+        "target_treatment_change_windows": float(assigned["target_treatment_change_windows"].sum()),
     }
-    state = {
-        split: {"patients": 0.0, "windows": 0.0, "net_growth": 0.0, "treat": 0.0}
-        for split in split_names
+    global_means = {
+        "mean_locf_dice": float(np.average(assigned["mean_locf_dice"], weights=assigned["n_windows"])),
+        "mean_relative_new_growth": float(np.average(assigned["mean_relative_new_growth"], weights=assigned["n_windows"])),
+        "mean_delta_days": float(np.average(assigned["mean_delta_days"], weights=assigned["n_windows"])),
     }
 
-    work = patient.copy()
-    work["_jitter"] = rng.uniform(0.0, 1e-6, size=len(work))
-    work = work.sort_values(
-        ["n_windows", "net_growth_rate", "mean_growth_volume_vox", "_jitter"],
-        ascending=[False, False, False, True],
-    ).reset_index(drop=True)
+    score = 0.0
+    for split in split_names:
+        part = assigned[assigned["split"] == split]
+        if part.empty:
+            return float("inf")
+        n_windows = float(part["n_windows"].sum())
+        net_growth = float(part["net_growth_windows"].sum())
+        treatment_change = float(part["target_treatment_change_windows"].sum())
+        locf = float(np.average(part["mean_locf_dice"], weights=part["n_windows"]))
+        rel_growth = float(np.average(part["mean_relative_new_growth"], weights=part["n_windows"]))
+        delta = float(np.average(part["mean_delta_days"], weights=part["n_windows"]))
 
-    assignments = []
-    for _, row in work.iterrows():
-        candidate_scores = []
-        for split in split_names:
-            if state[split]["patients"] >= patient_quota[split]:
-                continue
-            projected = state[split].copy()
-            projected["patients"] += 1
-            projected["windows"] += float(row["n_windows"])
-            projected["net_growth"] += float(row["net_growth_windows"])
-            projected["treat"] += float(row["target_treatment_change_windows"])
+        score += 3.00 * abs(n_windows - fracs[split] * totals["n_windows"]) / max(1.0, totals["n_windows"])
+        score += 1.00 * abs(len(part) - patient_quota[split]) / max(1.0, len(assigned))
+        if totals["net_growth_windows"] > 0:
+            score += 1.25 * abs(net_growth - fracs[split] * totals["net_growth_windows"]) / totals["net_growth_windows"]
+        if totals["target_treatment_change_windows"] > 0:
+            score += (
+                0.50
+                * abs(treatment_change - fracs[split] * totals["target_treatment_change_windows"])
+                / totals["target_treatment_change_windows"]
+            )
+        score += 1.00 * abs(locf - global_means["mean_locf_dice"])
+        score += 0.40 * abs(rel_growth - global_means["mean_relative_new_growth"]) / max(
+            1e-6, abs(global_means["mean_relative_new_growth"])
+        )
+        score += 0.35 * abs(delta - global_means["mean_delta_days"]) / max(1e-6, abs(global_means["mean_delta_days"]))
+    return float(score)
 
-            score = 0.0
-            score += abs(projected["windows"] - targets[split]["windows"]) / max(1.0, total_windows)
-            score += 0.75 * abs(projected["patients"] - targets[split]["patients"]) / max(1.0, n_patients)
-            if total_net_growth > 0:
-                score += 0.50 * abs(projected["net_growth"] - targets[split]["net_growth"]) / max(1.0, total_net_growth)
-            if total_treat > 0:
-                score += 0.35 * abs(projected["treat"] - targets[split]["treat"]) / max(1.0, total_treat)
 
-            candidate_scores.append((score, split))
+def assign_from_order(patient: pd.DataFrame, order: np.ndarray, patient_quota: Dict[str, int]) -> pd.DataFrame:
+    split_order = ["train", "val", "test"]
+    labels: List[dict] = []
+    start = 0
+    for split in split_order:
+        stop = start + patient_quota[split]
+        for idx in order[start:stop]:
+            labels.append({"patient_id": patient.iloc[int(idx)]["patient_id"], "split": split})
+        start = stop
+    return patient.merge(pd.DataFrame(labels), on="patient_id", how="left")
 
-        if not candidate_scores:
-            raise RuntimeError("No split has remaining patient capacity; this should not happen.")
-        _, chosen = min(candidate_scores, key=lambda x: (x[0], split_names.index(x[1])))
-        state[chosen]["patients"] += 1
-        state[chosen]["windows"] += float(row["n_windows"])
-        state[chosen]["net_growth"] += float(row["net_growth_windows"])
-        state[chosen]["treat"] += float(row["target_treatment_change_windows"])
-        assignments.append({"patient_id": row["patient_id"], "split": chosen})
 
-    assigned = patient.merge(pd.DataFrame(assignments), on="patient_id", how="left")
-    return assigned.sort_values(["split", "patient_id"]).reset_index(drop=True)
+def search_assign(patient: pd.DataFrame, fracs: Dict[str, float], seed: int, n_candidates: int) -> tuple[pd.DataFrame, float]:
+    rng = np.random.default_rng(seed)
+    n_patients = len(patient)
+    patient_quota = compute_patient_quota(n_patients, fracs)
+    order_base = np.arange(n_patients)
+    best: pd.DataFrame | None = None
+    best_score = float("inf")
+
+    # Include one deterministic high-window ordering, then random permutations.
+    deterministic = patient.sort_values(["n_windows", "net_growth_rate"], ascending=[False, False]).index.to_numpy()
+    candidate_orders = [deterministic]
+    for _ in range(max(1, n_candidates)):
+        candidate_orders.append(rng.permutation(order_base))
+
+    for order in candidate_orders:
+        assigned = assign_from_order(patient, order, patient_quota)
+        score = score_assignment(assigned, fracs, patient_quota)
+        if score < best_score:
+            best_score = score
+            best = assigned
+
+    if best is None:
+        raise RuntimeError("Could not produce a split assignment.")
+    assigned = best
+    assigned["assignment_score"] = best_score
+    return assigned.sort_values(["split", "patient_id"]).reset_index(drop=True), float(best_score)
 
 
 def write_report(path: Path, assigned: pd.DataFrame, summaries: Dict[str, pd.DataFrame], fracs: Dict[str, float]) -> None:
@@ -184,6 +207,7 @@ def main() -> None:
     parser.add_argument("--window_csv", type=str, required=True)
     parser.add_argument("--fractions", type=str, default="train=0.6,val=0.2,test=0.2")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--n_candidates", type=int, default=20000)
     parser.add_argument("--output_dir", type=str, required=True)
     args = parser.parse_args()
 
@@ -196,7 +220,7 @@ def main() -> None:
     if windows.empty:
         raise ValueError(f"Window CSV has no rows: {window_csv}")
     patient = build_patient_table(windows)
-    assigned = greedy_assign(patient, fracs=fracs, seed=args.seed)
+    assigned, assignment_score = search_assign(patient, fracs=fracs, seed=args.seed, n_candidates=args.n_candidates)
     split_map = {
         split: assigned.loc[assigned["split"] == split, "patient_id"].tolist()
         for split in ["train", "val", "test"]
@@ -216,7 +240,17 @@ def main() -> None:
         filename = name.lower().replace(" ", "_")
         table.to_csv(output_dir / f"{filename}.csv", index=False)
     with (output_dir / "longitudinal_patient_splits.json").open("w", encoding="utf-8") as f:
-        json.dump({"seed": args.seed, "fractions": fracs, "splits": split_map}, f, indent=2)
+        json.dump(
+            {
+                "seed": args.seed,
+                "n_candidates": args.n_candidates,
+                "assignment_score": assignment_score,
+                "fractions": fracs,
+                "splits": split_map,
+            },
+            f,
+            indent=2,
+        )
     write_report(output_dir / "longitudinal_patient_split_report.md", assigned, summaries, fracs)
 
     print(
@@ -225,6 +259,7 @@ def main() -> None:
                 "window_csv": str(window_csv),
                 "n_patients": int(len(assigned)),
                 "n_windows": int(len(manifest)),
+                "assignment_score": float(assignment_score),
                 "splits": {k: {"n_patients": len(v)} for k, v in split_map.items()},
                 "output_dir": str(output_dir),
             },
