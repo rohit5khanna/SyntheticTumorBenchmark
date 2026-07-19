@@ -4429,3 +4429,18 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
 - Full SAILOR volumes are large (`229 x 193 x 193`) and image arrays are stored as flattened session-by-modality blocks, so a direct full-volume image+mask residual run is much heavier than SRD experiments.
 - Updated the residual-change runner to support staged, observable experiments: correct session/modality image reshaping, optional spatial downsampling, train/validation/evaluation sample caps, and per-batch progress printing.
 - Interpretation: do not treat the silent long run as evidence against the residual-change idea. It is an execution-design problem. We should first validate correctness with a capped/downsampled smoke test, then scale carefully to larger runs.
+
+## 2026-07-19 - Corrected SAILOR Residual-Change Stride-2 Result
+
+- Completed corrected SAILOR residual growth/loss ResUNet run with `image_mask`, corrected 8-channel input, spatial stride 2, full train/validation/test manifest split v2, 8 epochs, seed 42.
+- The run completed successfully and selected growth threshold 0.5 and loss threshold 0.7 on validation.
+- Performance did not beat LOCF: validation mean Dice 0.5788 versus recomputed LOCF 0.6177; test mean Dice 0.5593 versus recomputed LOCF 0.6413.
+- By net direction, residual-change was worse than LOCF in all groups: test net-growth gap -0.0508 and test net-shrinkage gap -0.1318.
+- The main failure mode is now clear: the model predicts very little loss/shrinkage despite a separate loss head. On test, predicted loss averaged only about 15 voxels versus true loss about 1334 voxels at stride-2 scale. It also underpredicts true growth in net-growth cases and adds growth in shrinkage cases.
+- Interpretation: the naive residual-change formulation is not sufficient. The issue is likely not just architecture but target imbalance and spatial support: growth/loss voxels are sparse relative to the full 3D volume, and whole-volume residual learning encourages near-persistence plus scattered false growth. Next steps should test whether residual signal exists through channel-level probability diagnostics and then move to loss reweighting, ROI/band-limited residual learning, or distance-aware candidate regions rather than simply training the same model longer.
+
+## 2026-07-19 - Residual Probability Diagnostic Added
+
+- Added a residual-change probability diagnostic to evaluate whether the growth and loss heads contain useful ranking signal before hard thresholding.
+- The diagnostic computes growth-channel AP/AUC over outside-input candidate voxels and loss-channel AP/AUC over inside-input candidate voxels, plus mean probability on true growth, true loss, stable core, and background regions.
+- Purpose: separate three possible failure modes of the naive residual-change model: no probability signal, probability signal but poor thresholding/calibration, or signal restricted to one channel/regime. This should guide whether the next method should use loss reweighting, ROI/band-limited residual learning, distance-aware candidates, or a safer growth-only correction.
