@@ -102,7 +102,12 @@ class _TorchForecastDataset:
         return torch.from_numpy(x), torch.from_numpy(y), idx
 
 
-def _build_torch_model(in_channels: int, base_channels: int, model_variant: str = "unet"):
+def _build_torch_model(
+    in_channels: int,
+    base_channels: int,
+    model_variant: str = "unet",
+    out_channels: int = 1,
+):
     import torch
     import torch.nn as nn
     import torch.nn.functional as F
@@ -128,7 +133,7 @@ def _build_torch_model(in_channels: int, base_channels: int, model_variant: str 
             return self.seq(x)
 
     class UNet3D(nn.Module):
-        def __init__(self, cin: int, base: int):
+        def __init__(self, cin: int, base: int, cout: int):
             super().__init__()
             self.e1 = ConvBlock(cin, base)
             self.p1 = nn.MaxPool3d(2)
@@ -139,7 +144,7 @@ def _build_torch_model(in_channels: int, base_channels: int, model_variant: str 
             self.d2 = ConvBlock(base * 4, base * 2)
             self.u1 = nn.ConvTranspose3d(base * 2, base, kernel_size=2, stride=2)
             self.d1 = ConvBlock(base * 2, base)
-            self.head = nn.Conv3d(base, 1, kernel_size=1)
+            self.head = nn.Conv3d(base, cout, kernel_size=1)
 
         def forward(self, x):
             e1 = self.e1(x)
@@ -170,7 +175,7 @@ def _build_torch_model(in_channels: int, base_channels: int, model_variant: str 
             return self.act2(out)
 
     class ResUNet3D(nn.Module):
-        def __init__(self, cin: int, base: int):
+        def __init__(self, cin: int, base: int, cout: int):
             super().__init__()
             self.e1 = ResBlock(cin, base)
             self.p1 = nn.MaxPool3d(2)
@@ -181,7 +186,7 @@ def _build_torch_model(in_channels: int, base_channels: int, model_variant: str 
             self.d2 = ResBlock(base * 4, base * 2)
             self.u1 = nn.ConvTranspose3d(base * 2, base, kernel_size=2, stride=2)
             self.d1 = ResBlock(base * 2, base)
-            self.head = nn.Conv3d(base, 1, kernel_size=1)
+            self.head = nn.Conv3d(base, cout, kernel_size=1)
 
         def forward(self, x):
             e1 = self.e1(x)
@@ -194,7 +199,7 @@ def _build_torch_model(in_channels: int, base_channels: int, model_variant: str 
             return self.head(d1)
 
     class PlainEncoderDecoder3D(nn.Module):
-        def __init__(self, cin: int, base: int):
+        def __init__(self, cin: int, base: int, cout: int):
             super().__init__()
             self.enc1 = ConvBlock(cin, base)
             self.p1 = nn.MaxPool3d(2)
@@ -205,7 +210,7 @@ def _build_torch_model(in_channels: int, base_channels: int, model_variant: str 
             self.dec2 = ConvBlock(base * 2, base * 2)
             self.u1 = nn.ConvTranspose3d(base * 2, base, kernel_size=2, stride=2)
             self.dec1 = ConvBlock(base, base)
-            self.head = nn.Conv3d(base, 1, kernel_size=1)
+            self.head = nn.Conv3d(base, cout, kernel_size=1)
 
         def forward(self, x):
             x1 = self.enc1(x)
@@ -218,7 +223,7 @@ def _build_torch_model(in_channels: int, base_channels: int, model_variant: str 
             return self.head(x7)
 
     class MonaiUNETRWrapper(nn.Module):
-        def __init__(self, cin: int, base: int):
+        def __init__(self, cin: int, base: int, cout: int):
             super().__init__()
             try:
                 from monai.networks.nets import UNETR
@@ -238,7 +243,7 @@ def _build_torch_model(in_channels: int, base_channels: int, model_variant: str 
 
             self.net = UNETR(
                 in_channels=cin,
-                out_channels=1,
+                out_channels=cout,
                 img_size=img_size,
                 feature_size=feature_size,
                 hidden_size=hidden_size,
@@ -254,13 +259,13 @@ def _build_torch_model(in_channels: int, base_channels: int, model_variant: str 
             return self.net(x)
 
     if model_variant == "unet":
-        return UNet3D(in_channels, base_channels)
+        return UNet3D(in_channels, base_channels, out_channels)
     if model_variant == "resunet":
-        return ResUNet3D(in_channels, base_channels)
+        return ResUNet3D(in_channels, base_channels, out_channels)
     if model_variant == "plain_cnn":
-        return PlainEncoderDecoder3D(in_channels, base_channels)
+        return PlainEncoderDecoder3D(in_channels, base_channels, out_channels)
     if model_variant == "unetr":
-        return MonaiUNETRWrapper(in_channels, base_channels)
+        return MonaiUNETRWrapper(in_channels, base_channels, out_channels)
     raise ValueError(f"Unknown model_variant='{model_variant}'.")
 
 
