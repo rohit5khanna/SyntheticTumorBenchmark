@@ -4474,3 +4474,20 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
 - Added a patient-level bootstrap script for the selected growth-only residual policy versus LOCF.
 - Motivation: the selected growth-only policy produced a small positive validation/test mean gap, but the effect size is tiny and SAILOR windows are correlated within patient. Patient-level resampling is needed before treating the result as robust.
 - The bootstrap summarizes overall, split-level, and split-by-net-direction uncertainty, including confidence intervals and the bootstrap probability that the mean gap versus LOCF is positive.
+
+## 2026-07-19 - Growth-Only Policy Patient Bootstrap Result
+
+- Reviewed patient-level bootstrap for the selected SAILOR growth-only residual policy versus LOCF.
+- Overall across validation and test windows, the policy had a small positive mean gap (+0.0014 Dice) with bootstrap probability of positive mean gap about 0.765.
+- Test split alone was essentially uncertain: mean gap +0.0003 and bootstrap probability of positive mean gap about 0.534. This should not be claimed as an overall test improvement.
+- Net-growth windows were much more consistent: test net-growth mean gap +0.0036 with bootstrap probability of positive mean gap about 0.964, though based on only 3 test patients. Validation net-growth was also consistently positive (+0.0059, bootstrap probability 1.0).
+- Net-shrinkage windows showed harm or uncertainty: test net-shrinkage mean gap -0.0051 with probability of positive mean gap about 0.106; validation net-shrinkage mean gap -0.0011 with probability about 0.317.
+- Interpretation: the conservative growth-only policy is not an overall performance breakthrough, but it supports a conditional methodology: learned growth ranking can help net-growth transitions, while shrinkage/loss cases need a separate conservative handling strategy. Claims should emphasize conditional growth-localization signal, not broad Dice superiority.
+
+## 2026-07-19 - Growth-Only Outside-Input Model Added
+
+- Added a dedicated growth-only manifest baseline for SAILOR-style longitudinal windows.
+- Unlike the earlier residual-change model, this model predicts only one growth channel and computes its training loss only on voxels outside the current input mask.
+- Reconstruction follows the asymmetric persistence prior: `future = input mask OR selected growth candidates`.
+- The objective uses masked class-balanced BCE plus masked soft Dice to address sparse new-growth targets. Validation selects among fixed probability thresholds and top-k growth budgets.
+- Motivation: previous diagnostics showed that learned growth maps have strong ranking signal, while shrinkage/loss prediction is unreliable. This script trains directly for the growth-localization problem we now believe is scientifically better posed.
