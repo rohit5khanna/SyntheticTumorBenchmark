@@ -1,5 +1,72 @@
 # Updated Log
 
+## 2026-07-19: Short-Horizon Residual Forecaster Design Framed
+
+After reviewing the literature and the current SAILOR/SRD evidence, we paused before adding another model variant and defined a cleaner method direction.
+
+The key modeling principle is:
+
+`future tumor = current tumor + small controlled residual change`
+
+This reframes short-horizon tumor forecasting away from full-mask regeneration and toward a persistence-conditioned residual update. The current tumor mask is treated as a strong prior, and the learned model is asked to predict the component most supported by current evidence: new spatial growth outside the current tumor.
+
+A new design document was added:
+
+`docs/SHORT_HORIZON_RESIDUAL_FORECASTER_DESIGN.md`
+
+The design document records:
+
+- why full-mask prediction is not the cleanest first formulation for short-horizon forecasting;
+- why growth-only residual prediction should precede symmetric growth/loss modeling;
+- the proposed input/target/inference formulation;
+- a lightweight CNN-first architecture direction;
+- evaluation requirements beyond full Dice;
+- iterative rollout possibilities;
+- success/failure criteria;
+- safeguards against threshold chasing and over-engineering.
+
+Current working hypothesis:
+
+`Short-horizon tumor forecasting is best treated as persistence-preserving residual growth ranking, with shrinkage/loss handled as a separate uncertainty- and treatment-sensitive process.`
+
+This does not yet claim a method win. It defines a more disciplined next research step and prevents the project from drifting into another round of loosely motivated architecture or threshold experiments.
+
+## 2026-07-20: Short-Term Definition Tightened Around Time Gap And Growth Rate
+
+The project direction was refined to avoid treating "short-term" as synonymous with only "next scan." In real longitudinal imaging, next-scan intervals can vary substantially. A one-session forecast over 14 days and a one-session forecast over 140 days are not equivalent biological tasks.
+
+We therefore introduced three horizon notions:
+
+- session horizon: how many scans ahead are predicted;
+- calendar horizon: elapsed days between input and target scans;
+- biological or change horizon: amount of tumor change per unit time.
+
+This matters for LOCF. LOCF is not merely a weak baseline; it encodes a persistence prior:
+
+`expected change over the next interval is small enough that carrying the current tumor forward remains competitive.`
+
+The next analysis objective is to estimate the operating range of this prior:
+
+- LOCF Dice versus `delta_days`;
+- LOCF Dice versus new-growth volume;
+- LOCF Dice versus new-growth rate;
+- LOCF Dice versus net-volume-change rate;
+- LOCF Dice versus absolute-change rate;
+- interaction of interval bins and growth-rate bins.
+
+This addition was incorporated into:
+
+- `docs/FINAL_DRAFT_MAP.md`
+- `docs/SHORT_HORIZON_RESIDUAL_FORECASTER_DESIGN.md`
+
+The regime-aware evaluation perspective should now be built around when persistence is valid, when it breaks, and whether residual growth forecasting can exploit those breakdown regimes without damaging low-change cases.
+
+Implementation note: a focused LOCF operating-range script was added:
+
+`scripts/analyze_locf_operating_range.py`
+
+The script computes per-window persistence, growth, loss, elapsed time, growth-rate, and LOCF Dice features. It supports both standard split/horizon datasets and longitudinal manifest CSVs. Outputs include compact summaries by interval bins, growth-rate bins, interval-by-growth-rate interactions, correlations, standardized regression coefficients, and simple diagnostic figures.
+
 ## 2026-07-11: Workspace Consolidation And Research Restart
 
 After a one-week pause, the project was restarted with two priorities:
@@ -4491,3 +4558,45 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
 - Reconstruction follows the asymmetric persistence prior: `future = input mask OR selected growth candidates`.
 - The objective uses masked class-balanced BCE plus masked soft Dice to address sparse new-growth targets. Validation selects among fixed probability thresholds and top-k growth budgets.
 - Motivation: previous diagnostics showed that learned growth maps have strong ranking signal, while shrinkage/loss prediction is unreliable. This script trains directly for the growth-localization problem we now believe is scientifically better posed.
+
+## 2026-07-19 - Dedicated Growth-Only SAILOR Model Result
+
+- Trained the dedicated growth-only outside-input ResUNet on SAILOR split v2 with corrected 8-channel image+mask input, spatial stride 2, 8 epochs, seed 42.
+- Validation selected the same conservative top-k policy as the post-hoc residual growth field: add top growth candidates up to 5% of input tumor volume.
+- Dedicated growth-only model improved over LOCF more than the post-hoc residual growth policy: validation mean Dice 0.6230 versus LOCF 0.6177 (gap +0.0054); test mean Dice 0.6434 versus LOCF 0.6413 (gap +0.0021).
+- Net-growth effect strengthened: validation net-growth gap +0.0101 and test net-growth gap +0.0054, with 85.7% and 75.0% win rates respectively.
+- Net-shrinkage behavior improved relative to earlier growth-only post-hoc policy: validation net-shrinkage was near neutral/slightly positive (+0.0006), while test net-shrinkage remained mildly negative (-0.0031).
+- Threshold policies remained unsafe because they add too many voxels; budgeted top-k policies remain the appropriate use of the learned growth ranking field.
+- Interpretation: this is the first direct method result supporting the asymmetric formulation. It is still modest and needs patient-level bootstrap/seed checks, but it demonstrates that training directly on outside-input growth candidates is better aligned than symmetric growth/loss residual prediction.
+
+## 2026-07-19 - Dedicated Growth-Only Model Bootstrap Result
+
+- Reviewed patient-level bootstrap for the dedicated growth-only SAILOR model.
+- Overall validation+test mean gap versus LOCF was +0.0038 Dice with bootstrap probability of positive mean gap 0.9568.
+- Validation split showed stronger support: mean gap +0.0054, probability positive 0.9890.
+- Test split remained positive but uncertain due to only 4 test patients: mean gap +0.0021, probability positive 0.7300.
+- Net-growth behavior is the strongest and most consistent signal: test net-growth mean gap +0.0054 with probability positive 1.0, and validation net-growth mean gap +0.0101 with probability positive 1.0. This is still based on few patients and should be described cautiously.
+- Shrinkage remains unresolved: test net-shrinkage mean gap -0.0031 with probability positive 0.2422; validation net-shrinkage was near neutral (+0.0006, probability positive 0.6012).
+- Interpretation: the dedicated growth-only model is now a real method direction, not merely a diagnostic. However, the evidence supports conditional growth-transition benefit more strongly than overall superiority. Next robustness step should be a seed repeat before changing architecture.
+
+## 2026-07-19 - Dedicated Growth-Only Seed 123 Result
+
+- Repeated the dedicated growth-only outside-input SAILOR model with seed 123 using the same setup as seed 42.
+- The validation-selected policy was again the conservative 5% top-k growth budget, which is an important stability point.
+- Seed 123 validation mean Dice was 0.6223 versus LOCF 0.6177 (gap +0.0047). Test mean Dice was 0.6423 versus LOCF 0.6413 (gap +0.0011).
+- Net-growth benefit persisted but was smaller on test than seed 42: validation net-growth gap +0.0089; test net-growth gap +0.0027.
+- Net-shrinkage remained near-neutral to mildly negative: validation +0.0005, test -0.0015.
+- Patient-level bootstrap for seed 123: overall probability of positive mean gap 0.9172; validation probability 0.9820; test probability 0.6172. Test net-growth probability was only 0.7382, reflecting small patient count and seed sensitivity.
+- Interpretation: the growth-only method replicated the same qualitative pattern and selected the same budget, but test effects are small and not yet conclusive. This strengthens the method direction but also reinforces the need for more patients/splits and possibly multi-seed aggregation before making strong performance claims.
+
+## 2026-07-19 - One-Week Research Refinement Pivot Before Writing
+
+- Decision: pause manuscript writing for one more week and use the time to substantially refine the research contribution before drafting again.
+- Motivation: the current work has moved beyond simple LOCF-versus-model comparison, but the strongest contribution should not rest on small Dice gains or over-engineered gates. The goal is to build a credible data-mining contribution around what can be mined from longitudinal tumor transitions that standard full-mask forecasting hides.
+- Working conceptual thesis: short-horizon tumor forecasting mixes at least three different signals: persistence of existing tumor, spatial expansion/new growth, and apparent loss/shrinkage. These components are not equally learnable and should not necessarily be modeled with one unconstrained full-mask forecasting objective.
+- One-week investigation blocks:
+  1. Transition taxonomy: characterize SAILOR and SRD transitions by persistent-core fraction, new-growth fraction, apparent-loss fraction, net-growth/net-shrinkage/mixed direction, boundary versus distant growth, and interval effects.
+  2. Predictability analysis: test which transition components are predictable from available inputs, including net-growth versus shrinkage, growth localization, loss localization, prior trend, treatment, tumor size, interval, and morphology.
+  3. Model behavior audit: use LOCF, direct ResUNet, residual-change, and growth-only models as probes to determine where each model helps or hurts, and whether gains come from persistence preservation, growth addition, or volume changes.
+  4. Principled method prototype: refine the asymmetric persistence-preserving growth model only after the above analysis, including budgeted growth versus thresholded growth, seed/split robustness, mask-only versus image+mask variants, and possible distance/candidate-region priors.
+- Near-term goal: by the end of the week, be able to state clearly which parts of tumor transition are persistent, learnable, uncertain, and model-sensitive. This should become the backbone of the eventual paper, rather than a leaderboard-style baseline comparison.
