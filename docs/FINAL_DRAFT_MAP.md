@@ -206,6 +206,8 @@ For each transition, quantify:
 - Patient bootstrap used for selected SAILOR method results.
 - Seed repeat run for growth-only model exists.
 - Patient-bootstrap tooling has been added for the conservative persistence-breakdown predictability audit.
+- Transition-label robustness has been audited across threshold settings for the SRD-SAILOR comparison.
+- A compact transition artifact exporter now keeps the main evidence package lean while preserving the full audit trail.
 
 #### Missing
 - Repeated patient split analysis.
@@ -214,6 +216,26 @@ For each transition, quantify:
 - A formal rule that no claim is made from fewer than a minimum number of patients unless marked exploratory.
 
 ## 4. Predictability Analysis
+
+### 4.0 Forecast-Origin Transition-State Predictability
+
+#### What Must Be Covered
+- Can difficult transition states be anticipated from information available at the input scan?
+- Which states are predictable enough to support risk stratification, and which remain mostly target-side discoveries?
+- Does predictability survive patient-level uncertainty, or is it mostly a window-level artifact?
+
+#### Current Status
+- `scripts/analyze_forecast_origin_predictability.py` has been added as a stricter audit layer after transition taxonomy and before growth-region ranking.
+- The script predicts transition-state labels such as mixed growth/loss, distant-growth presence, high transition burden, LOCF breakdown, and high change rate.
+- Predictors are explicitly restricted to forecast-origin information such as interval length, input span, input tumor volume, current treatment, treatment change within input history, and previous growth/loss descriptors.
+- The script blocks target-derived variables such as target volume, future growth/loss, LOCF Dice, transition type, target treatment, and spatial outcome fractions from being used as predictors.
+- Outputs include prevalence, logistic/tree summaries, feature weights, shallow tree rules, patient-bootstrap uncertainty, predictions, and a short report.
+
+#### Missing
+- Run the audit on SAILOR first, then optionally SRD.
+- Treat this as risk-screening evidence, not as a deployment gate unless precision/recall and patient-bootstrap stability are strong.
+- Compare whether SAILOR transition states are less predictable from simple origin-known features than SRD states.
+- Decide whether forecast-origin predictability should become a central result or only a cautionary analysis before ranking/localization.
 
 ### 4.1 Growth Predictability
 
