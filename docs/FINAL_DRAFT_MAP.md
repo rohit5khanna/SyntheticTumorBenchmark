@@ -88,6 +88,7 @@ LOCF should break down when either elapsed time or growth/change rate becomes la
 - Existing SRD generation code and parameter ranges exist.
 - Prior tier-level and case-type analyses exist.
 - SRD has been used heavily for initial regime analysis and model comparisons.
+- Transition-taxonomy comparison tooling has been added to quantify where SRD covers or misses SAILOR-like transition structure.
 
 #### Missing
 - Multiple SRD realizations beyond current fixed dataset.
@@ -95,6 +96,7 @@ LOCF should break down when either elapsed time or growth/change rate becomes la
 - Clear distinction between generator-controlled tier labels and discovered transition categories.
 - A table decomposing SRD transitions into persistence/growth/loss components.
 - Evidence that key SRD findings are not artifacts of one synthetic realization.
+- If SRD misses important SAILOR transition regions, a principled decision is needed: either extend SRD or explicitly frame it as a controlled mechanism-isolation environment.
 
 ### 2.2 SAILOR Real-Data Processing
 
