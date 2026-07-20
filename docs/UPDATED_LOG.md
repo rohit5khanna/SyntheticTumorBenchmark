@@ -4658,3 +4658,13 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
 - Added `scripts/run_transition_taxonomy_radius_sensitivity.py` to rerun spatial transition taxonomy over multiple boundary radii and collate stability summaries.
 - Motivation: the boundary-versus-distant growth distinction is analytically useful, but it should not depend on a single arbitrary 3-voxel radius. This runner tests radii such as 1, 3, 5, and 7 voxels and summarizes how boundary-growth fraction, distant-growth rate, boundary-loss fraction, core-loss rate, and transition-type counts change.
 - This is a robustness check for the transition taxonomy, not a new model or a tuned performance result.
+
+## 2026-07-20 - SAILOR Transition Taxonomy Radius-Sensitivity Result
+
+- Ran SAILOR spatial transition-taxonomy sensitivity over boundary radii 1, 3, 5, and 7 voxels.
+- As expected, absolute boundary/distant fractions were radius-dependent: mean distant-growth fraction decreased from 0.540 at radius 1 to 0.267 at radius 3, 0.183 at radius 5, and 0.141 at radius 7. Distant-growth-present rate decreased from 0.971 to 0.478, 0.309, and 0.243 respectively.
+- The qualitative ordering remained useful: net-growth transitions consistently had lower LOCF Dice than net-shrinkage transitions (0.608 versus 0.679), higher relative absolute change (2.045 versus 0.554), and higher distant-growth burden at every radius.
+- At radius 3, net-growth distant-growth-present rate was 0.653 versus 0.262 for net-shrinkage; at radius 5 it was 0.440 versus 0.148; at radius 7 it was 0.333 versus 0.131. This suggests the spatial-extension signal is not purely an artifact of the 3-voxel radius, though the magnitude is radius-sensitive.
+- Transition-type counts and LOCF ordering were stable because the current type rules are mostly driven by relative growth/loss thresholds, with boundary-growth-dominant cases separated by spatial locality. Boundary-growth-dominant transitions stayed easy for LOCF (mean Dice 0.846, n=16) across radii 3, 5, and 7; mixed growth/loss stayed hardest (mean Dice 0.559, n=53).
+- Radius 1 was too strict for the boundary definition and classified nearly all growth/loss as distant/core, so radius 1 should mainly be treated as a stress test rather than the default descriptor.
+- Interpretation: boundary/distant spatial descriptors should be reported as sensitivity-aware geometric descriptors, not fixed biological labels. The robust conclusion is comparative: harder net-growth and mixed-change transitions carry more non-boundary spatial change than easier boundary-local transitions.
