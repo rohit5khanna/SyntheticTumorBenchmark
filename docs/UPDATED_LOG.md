@@ -1,5 +1,30 @@
 # Updated Log
 
+## 2026-07-20: Main-Paper Transition Artifact Exporter Added
+
+Added `scripts/export_transition_main_artifacts.py` to condense the full transition evidence package into main-paper-sized artifacts.
+
+The exporter reads:
+
+- `transition_evidence_package_v1`;
+- `transition_label_robustness_v1`.
+
+It writes:
+
+- `main_transition_summary_table.csv`;
+- `main_transition_summary_table.md`;
+- `main_transition_type_and_locf_figure.png`;
+- `main_transition_artifacts_notes.md`.
+
+Purpose: keep the paper lean. The transition-evidence section should use one compact table plus one two-panel figure, while the full threshold robustness, patient-spread, radius-sensitivity, and domain-gap tables remain as audit support.
+
+Current recommended main-paper transition artifacts:
+
+1. compact SRD-vs-SAILOR transition summary table;
+2. two-panel transition-type distribution / LOCF Dice figure.
+
+This prevents the transition-analysis section from consuming too much of a 10-page paper while still preserving the rigorous evidence trail.
+
 ## 2026-07-20: Transition Label Robustness Result
 
 Ran the transition-label robustness audit comparing SAILOR and SRD transition-taxonomy samples across 576 threshold settings.
