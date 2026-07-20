@@ -1,5 +1,29 @@
 # Updated Log
 
+## 2026-07-20: Transition Evidence Package Builder Added
+
+Added `scripts/build_transition_evidence_package.py` to curate existing transition-analysis outputs into one evidence package.
+
+This is a consolidation tool, not a new experiment. It reads existing outputs from:
+
+- SAILOR transition taxonomy;
+- SRD transition taxonomy;
+- SRD-SAILOR transition domain gap;
+- SAILOR radius-sensitivity analysis;
+- SAILOR LOCF operating-range analysis.
+
+The package builder writes:
+
+- `transition_evidence_summary.md`;
+- `core_tables/dataset_overall_comparison.csv`;
+- `core_tables/transition_type_distribution.csv`;
+- `core_tables/net_direction_distribution.csv`;
+- copied source reports where available;
+- optional figures for transition-type distribution, LOCF Dice by transition type, transition-burden components, and radius sensitivity;
+- `core_tables/claim_support_matrix.csv`.
+
+The goal is to make the transition itself the central data-mining object before running additional models. The script records missing/skipped inputs rather than inventing values, so it can be run safely in Colab even when some output folders are unavailable.
+
 ## 2026-07-20: Ruthless Claim-Evidence Audit Added
 
 Added a stricter claim-evidence audit to the current evidence chain and tightened the claim table in the final draft map.
