@@ -25,6 +25,8 @@ Current recommended main-paper transition artifacts:
 
 This prevents the transition-analysis section from consuming too much of a 10-page paper while still preserving the rigorous evidence trail.
 
+Follow-up polish: the exported main table now uses main-paper-friendly metric labels and percentages for categorical transition rows. The previous audit-style wording was useful internally but too dense for a 10-page manuscript table.
+
 ## 2026-07-20: Transition Label Robustness Result
 
 Ran the transition-label robustness audit comparing SAILOR and SRD transition-taxonomy samples across 576 threshold settings.

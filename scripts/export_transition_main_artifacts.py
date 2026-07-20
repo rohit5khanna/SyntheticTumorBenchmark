@@ -49,7 +49,23 @@ def patient_spread_text(patient_spread: pd.DataFrame, dataset: str, region: str)
     if row.empty:
         return ""
     r = row.iloc[0]
-    return f"{int(r['n'])}/{int(r['n_patients'])} trans./patients; max patient share {float(r['max_patient_fraction']):.2f}"
+    n = int(r["n"])
+    n_patients = int(r["n_patients"])
+    if n == 0 or n_patients == 0:
+        return "no transitions"
+    transition_word = "transition" if n == 1 else "transitions"
+    patient_word = "patient" if n_patients == 1 else "patients"
+    return f"{n} {transition_word} across {n_patients} {patient_word}; largest patient share {float(r['max_patient_fraction']):.2f}"
+
+
+def fmt_pct(value: object, digits: int = 1) -> str:
+    try:
+        x = float(value) * 100.0
+    except Exception:
+        return ""
+    if not np.isfinite(x):
+        return ""
+    return f"{x:.{digits}f}%"
 
 
 def build_compact_table(
@@ -74,61 +90,55 @@ def build_compact_table(
 
     rows = [
         {
-            "evidence_axis": "Sample size",
-            sailor_name: f"{int(get_value(overall, sailor_name, 'n_transitions'))} transitions / {int(get_value(overall, sailor_name, 'n_patients'))} patients",
-            srd_name: f"{int(get_value(overall, srd_name, 'n_transitions'))} transitions / {int(get_value(overall, srd_name, 'n_patients'))} patients",
-            "robustness_note": "Both analyses are transition-level; SAILOR patient spread is reported for hard regions.",
+            "metric": "Transitions / patients",
+            sailor_name: f"{int(get_value(overall, sailor_name, 'n_transitions'))} / {int(get_value(overall, sailor_name, 'n_patients'))}",
+            srd_name: f"{int(get_value(overall, srd_name, 'n_transitions'))} / {int(get_value(overall, srd_name, 'n_patients'))}",
+            "main_message": "Transition-level analysis with patient spread checked for hard SAILOR regions.",
         },
         {
-            "evidence_axis": "LOCF Dice",
+            "metric": "Mean LOCF Dice",
             sailor_name: fmt_float(get_value(overall, sailor_name, "mean_locf_dice")),
             srd_name: fmt_float(get_value(overall, srd_name, "mean_locf_dice")),
-            "robustness_note": "Use as operating-range context, not as a standalone leaderboard.",
+            "main_message": "Persistence is stronger on SRD, but this should be read as operating-range context rather than a leaderboard.",
         },
         {
-            "evidence_axis": "Relative absolute change",
+            "metric": "Mean relative absolute change",
             sailor_name: fmt_float(get_value(overall, sailor_name, "mean_relative_absolute_change")),
             srd_name: fmt_float(get_value(overall, srd_name, "mean_relative_absolute_change")),
-            "robustness_note": "SAILOR has higher observed transition burden.",
+            "main_message": "SAILOR has substantially higher observed transition burden.",
         },
         {
-            "evidence_axis": "Mixed growth/loss",
-            sailor_name: fmt_float(transition_fraction(sailor_name, "mixed_growth_loss")),
-            srd_name: fmt_float(transition_fraction(srd_name, "mixed_growth_loss")),
-            "robustness_note": (
-                f"SAILOR > SRD in {region_value(robust, 'mixed_growth_loss', 'fraction_gap_positive_rate'):.2f} "
+            "metric": "Mixed growth/loss transitions",
+            sailor_name: fmt_pct(transition_fraction(sailor_name, "mixed_growth_loss")),
+            srd_name: fmt_pct(transition_fraction(srd_name, "mixed_growth_loss")),
+            "main_message": (
+                f"SAILOR > SRD in {fmt_pct(region_value(robust, 'mixed_growth_loss', 'fraction_gap_positive_rate'), 0)} "
                 f"of threshold settings; {patient_spread_text(spread, sailor_name, 'mixed_growth_loss')}"
             ),
         },
         {
-            "evidence_axis": "Distant/non-boundary growth",
-            sailor_name: fmt_float(get_value(overall, sailor_name, "distant_growth_rate")),
-            srd_name: fmt_float(get_value(overall, srd_name, "distant_growth_rate")),
-            "robustness_note": (
-                f"SAILOR > SRD in {region_value(robust, 'distant_growth_present', 'fraction_gap_positive_rate'):.2f} "
+            "metric": "Distant/non-boundary growth",
+            sailor_name: fmt_pct(get_value(overall, sailor_name, "distant_growth_rate")),
+            srd_name: fmt_pct(get_value(overall, srd_name, "distant_growth_rate")),
+            "main_message": (
+                f"SAILOR > SRD in {fmt_pct(region_value(robust, 'distant_growth_present', 'fraction_gap_positive_rate'), 0)} "
                 f"of threshold settings; {patient_spread_text(spread, sailor_name, 'distant_growth_present')}"
             ),
         },
         {
-            "evidence_axis": "Persistence-dominant transitions",
-            sailor_name: fmt_float(transition_fraction(sailor_name, "persistence_dominant")),
-            srd_name: fmt_float(transition_fraction(srd_name, "persistence_dominant")),
-            "robustness_note": "SRD remains more persistence-friendly across tested thresholds.",
+            "metric": "Persistence-dominant transitions",
+            sailor_name: fmt_pct(transition_fraction(sailor_name, "persistence_dominant")),
+            srd_name: fmt_pct(transition_fraction(srd_name, "persistence_dominant")),
+            "main_message": "SRD remains more persistence-friendly across tested thresholds.",
         },
         {
-            "evidence_axis": "High absolute change",
-            sailor_name: fmt_float(region_value(spread[spread["dataset"].astype(str).eq(sailor_name)], "high_absolute_change", "fraction")),
-            srd_name: fmt_float(region_value(spread[spread["dataset"].astype(str).eq(srd_name)], "high_absolute_change", "fraction")),
-            "robustness_note": (
-                f"SAILOR > SRD in {region_value(robust, 'high_absolute_change', 'fraction_gap_positive_rate'):.2f} "
-                f"of threshold settings; {patient_spread_text(spread, sailor_name, 'high_absolute_change')}"
+            "metric": "High-change transitions",
+            sailor_name: fmt_pct(region_value(spread[spread["dataset"].astype(str).eq(sailor_name)], "high_absolute_change", "fraction")),
+            srd_name: fmt_pct(region_value(spread[spread["dataset"].astype(str).eq(srd_name)], "high_absolute_change", "fraction")),
+            "main_message": (
+                "Defined as relative absolute change >= 2.0; "
+                f"{patient_spread_text(spread, sailor_name, 'high_absolute_change')}"
             ),
-        },
-        {
-            "evidence_axis": "Secondary/cautious descriptors",
-            sailor_name: "core-loss/loss present",
-            srd_name: "loss axis cleaner",
-            "robustness_note": "Core-loss and loss-dominant gaps were less stable; keep them secondary.",
         },
     ]
 
@@ -233,6 +243,7 @@ def write_caption(output_dir: Path, table: pd.DataFrame, figure_path: str) -> No
         f.write("`main_transition_summary_table.csv` / `main_transition_summary_table.md`\n\n")
         f.write(table.to_markdown(index=False))
         f.write("\n\n")
+        f.write("Table note: LOCF = last observation carried forward. Relative absolute change is `(new-growth volume + apparent-loss volume) / input tumor volume`. Categorical rows report transition fractions. Core-loss and loss-dominant descriptors are retained as audit-level secondary evidence because their threshold robustness was weaker.\n\n")
         f.write("## Figure\n\n")
         f.write(f"`{figure_path}`\n\n")
         f.write("Suggested caption:\n\n")
