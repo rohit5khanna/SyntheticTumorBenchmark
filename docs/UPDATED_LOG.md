@@ -1,5 +1,28 @@
 # Updated Log
 
+## 2026-07-20: Transition Label Robustness Audit Added
+
+Added `scripts/audit_transition_label_robustness.py` to stress-test whether the transition-analysis findings depend on one arbitrary threshold choice or a small number of patients.
+
+The audit consumes existing `transition_taxonomy_samples.csv` files and does not rerun models, recompute masks, or generate new synthetic data. It varies:
+
+- persistence threshold for low-change transitions;
+- growth/loss thresholds for mixed, growth-dominant, and loss-dominant regions;
+- distant-growth threshold;
+- core-loss threshold;
+- high-absolute-change threshold.
+
+It outputs:
+
+- threshold sensitivity by dataset and region;
+- SAILOR-SRD fraction gaps across threshold settings;
+- robust region-gap summaries;
+- default-threshold patient-spread/concentration summaries;
+- SAILOR-reference quantile coverage for SRD;
+- optional plots for threshold stability and patient concentration.
+
+Purpose: make the current transition evidence harder to dismiss as a threshold artifact. This is especially important for the claims that SAILOR has substantial mixed growth/loss and non-boundary transition complexity while SRD remains a cleaner mechanism-isolation environment.
+
 ## 2026-07-20: Transition Evidence Package Builder Added
 
 Added `scripts/build_transition_evidence_package.py` to curate existing transition-analysis outputs into one evidence package.
