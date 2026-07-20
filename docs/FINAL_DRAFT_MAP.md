@@ -586,6 +586,9 @@ The final work should not be submitted merely because it can be made to sound pl
 - Claims are supported by explicit evidence.
 - Randomness and sample-size limitations are visible.
 - No main conclusion depends on a single random realization.
+- Critical quantitative claims require multi-seed, multi-split, patient-bootstrap, threshold-sensitivity, or equivalent robustness evidence. If a result only has one seed/split/realization, it must be labeled exploratory or diagnostic.
+- Model-performance claims require stronger robustness than descriptive data-mining claims because training randomness and split construction can easily change small gains.
+- SRD-specific conclusions should distinguish controlled mechanism-isolation findings from generator-specific proportions; exact SRD prevalence values should not be treated as universal unless repeated across synthetic realizations.
 - Small Dice gains are not oversold.
 - Negative results are incorporated honestly.
 - Data-mining insight is central, not decorative.

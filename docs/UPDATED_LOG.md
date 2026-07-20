@@ -4860,3 +4860,11 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
 - Outputs include labeled samples, target prevalence, logistic and shallow-tree summaries, feature weights/importances, shallow tree rules, patient-level bootstrap uncertainty, and a short markdown report.
 - Interpretation goal: this is not a new forecasting model. It is a risk-stratification audit. If origin-known features weakly predict mixed/distant/high-burden transitions, then model-conditioning claims must be modest. If they predict certain states robustly, those states become candidates for regime-aware priors or evaluation strata.
 - This directly supports the current draft-map spine: transition taxonomy first, forecast-origin predictability second, growth-region ranking/localization third.
+
+## 2026-07-20 - Robustness Standard For Critical Experiments
+
+- Added a project-level rule: critical quantitative claims cannot rely on one or two random seeds, one patient split, or one synthetic realization unless they are explicitly labeled exploratory or diagnostic.
+- Acceptable support for a central claim should include some combination of repeated random seeds, repeated patient splits, patient-level bootstrap uncertainty, threshold/radius sensitivity, or repeated synthetic realizations depending on the claim type.
+- Model-performance claims require stronger robustness than descriptive transition-analysis claims because small model gains are especially vulnerable to split construction, training stochasticity, checkpoint selection, and threshold/budget tuning.
+- SRD findings should distinguish controlled mechanism-isolation behavior from exact prevalence claims. Exact SRD proportions are generator-realization-specific unless repeated across synthetic generations.
+- This rule will guide how we interpret upcoming forecast-origin predictability, growth-ranking, and method-prototype experiments.
