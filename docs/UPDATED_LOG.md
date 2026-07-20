@@ -69,6 +69,8 @@ The script computes per-window persistence, growth, loss, elapsed time, growth-r
 
 Follow-up fix: the script now uses existing manifest feature columns directly when available. This is important for SAILOR Colab runs because the longitudinal manifest already contains `locf_dice`, growth volume, loss volume, interval, split, and direction columns, so this specific analysis should not require copying or loading the full SAILOR `.npy` dataset.
 
+Bridge-analysis implementation: `scripts/analyze_operating_regime_bridge.py` was added to connect the LOCF operating-range samples with optional model per-sample outputs. The goal is to stratify cases by observed relative absolute change, then report LOCF performance and model gaps within low/medium/high change strata. These bins are descriptive and should not be treated as learned clinical categories or tuned decision rules.
+
 ## 2026-07-11: Workspace Consolidation And Research Restart
 
 After a one-week pause, the project was restarted with two priorities:
