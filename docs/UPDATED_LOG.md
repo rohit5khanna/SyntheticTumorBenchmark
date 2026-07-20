@@ -4652,3 +4652,9 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
 - Validation and test splits were not identical. Validation had lower mean LOCF Dice (0.616), higher relative absolute change (1.448), higher distant-growth rate (0.536), and higher core-loss rate (0.357) than test (LOCF 0.644, relative absolute change 1.302, distant-growth rate 0.423, core-loss rate 0.231). This reinforces the need to report patient counts and split-level uncertainty.
 - Interpretation: SAILOR next-session forecasting is not simply a low-change persistence problem. The transition burden is heterogeneous, with mixed growth/loss and distant-growth components that full-mask Dice can obscure. This strengthens the data-mining direction: characterize transition components first, then evaluate models by which component they help or harm.
 - Caveat: transition-type labels currently use heuristic thresholds and a boundary radius of 3 voxels. These labels are useful as analysis descriptors, not final biological classes. Sensitivity to radius/threshold should be checked before making strong claims.
+
+## 2026-07-20 - Transition Taxonomy Radius-Sensitivity Tooling Added
+
+- Added `scripts/run_transition_taxonomy_radius_sensitivity.py` to rerun spatial transition taxonomy over multiple boundary radii and collate stability summaries.
+- Motivation: the boundary-versus-distant growth distinction is analytically useful, but it should not depend on a single arbitrary 3-voxel radius. This runner tests radii such as 1, 3, 5, and 7 voxels and summarizes how boundary-growth fraction, distant-growth rate, boundary-loss fraction, core-loss rate, and transition-type counts change.
+- This is a robustness check for the transition taxonomy, not a new model or a tuned performance result.

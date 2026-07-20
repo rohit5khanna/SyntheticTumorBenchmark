@@ -181,9 +181,10 @@ For each transition, quantify:
 - Net-growth/net-shrinkage categories are used.
 - SRD case types exist from LOCF versus ResUNet behavior.
 - Transition-taxonomy tooling now assigns descriptive categories such as persistence-dominant, growth-dominant, loss-dominant, mixed growth/loss, boundary-growth-dominant, and distant-growth-present.
+- Radius-sensitivity tooling has been added to test whether boundary/distant labels depend on one arbitrary voxel radius.
 
 #### Missing
-- Review boundary versus distant growth analysis after recomputed-mask runs.
+- Review boundary versus distant growth analysis after recomputed-mask and radius-sensitivity runs.
 - Mixed spatial-change category independent of net volume change.
 - Patient-level transition trajectories.
 - Whether transition types are stable within patient or change over time.
