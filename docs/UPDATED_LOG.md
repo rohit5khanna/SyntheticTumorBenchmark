@@ -4623,3 +4623,12 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
 - The bootstrap resamples patients within each evaluation split and recomputes accuracy, balanced accuracy, ROC-AUC, average precision, precision, recall, false-negative rate, and false-positive rate at a chosen classification threshold.
 - Motivation: the conservative persistence-breakdown audit shows weak-to-moderate predictive signal, but SAILOR windows are correlated within patients. We should not treat window-level metrics as stable without patient-level uncertainty.
 - This change directly supports the Final Draft Map requirements around randomness/artifact risk and transition-state predictability.
+
+## 2026-07-20 - Conservative Persistence-Breakdown Patient Bootstrap Result
+
+- Ran the conservative SAILOR persistence-breakdown predictability audit with 5,000 patient-bootstrap resamples per model and split.
+- Window-level model summary remained weak-to-moderate: logistic test ROC-AUC 0.654 and balanced accuracy 0.594; tree test ROC-AUC 0.620 and balanced accuracy 0.647. Validation performance was weaker for logistic and moderate for the tree.
+- Patient-bootstrap uncertainty confirmed that the signal is not strong enough for a hard deployable gate. For the tree, probability of balanced accuracy above 0.5 was high on both validation (0.921) and test (0.996), and probability of ROC-AUC above 0.5 was also high (validation 0.853, test 0.996). However, average precision rarely exceeded 0.5 because high-change cases are sparse and precision remains low.
+- Recall-oriented behavior survived better than precision-oriented behavior. At threshold 0.5, the tree test recall was 0.714, with bootstrap probability of recall above 0.5 equal to 0.934; validation recall was 0.778, with bootstrap probability 0.864.
+- The threshold sweep reinforces the same tradeoff: low thresholds catch most persistence-breakdown cases but produce many false positives. This is acceptable for a risk-screening interpretation but not for a precise model-selection gate.
+- Interpretation: pre-target features contain a real but noisy signal about when LOCF/persistence may break. The correct use is as an operating-regime risk score or analysis variable, not as a binary switch for forecasting methods unless future work improves precision and patient-level stability.
