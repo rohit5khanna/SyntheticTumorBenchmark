@@ -5,7 +5,6 @@ import argparse
 import json
 import math
 import sys
-from dataclasses import asdict
 from pathlib import Path
 from typing import Iterable, List
 
@@ -137,6 +136,66 @@ def build_samples(args: argparse.Namespace) -> tuple[List[ForecastSample], pd.Da
         allowed_tiers=args.allowed_tiers,
     )
     return samples, None
+
+
+def manifest_has_operating_features(manifest: pd.DataFrame) -> bool:
+    required = {
+        "patient_id",
+        "input_idx",
+        "target_idx",
+        "horizon",
+        "delta_days",
+        "input_volume_vox",
+        "target_volume_vox",
+        "growth_volume_vox",
+        "loss_volume_vox",
+        "relative_new_growth",
+        "relative_loss",
+        "relative_net_growth",
+        "locf_dice",
+    }
+    return required.issubset(set(manifest.columns))
+
+
+def compute_samples_from_manifest_features(manifest: pd.DataFrame, splits: Iterable[str]) -> pd.DataFrame:
+    splits_l = list(splits)
+    rows = manifest[manifest["split"].isin(splits_l)].copy() if splits_l else manifest.copy()
+    if rows.empty:
+        raise ValueError(f"No rows found for splits={splits_l} in manifest.")
+
+    out = pd.DataFrame(
+        {
+            "split": rows["split"].astype(str) if "split" in rows else "all",
+            "patient_id": rows["patient_id"].astype(str),
+            "tier": rows["patient_id"].astype(str).map(lambda x: infer_tier_from_patient_id(x, default_tier="REAL")),
+            "input_idx": rows["input_idx"].astype(int),
+            "target_idx": rows["target_idx"].astype(int),
+            "horizon": rows["horizon"].astype(int),
+            "delta_days": rows["delta_days"].astype(float),
+            "current_treatment": rows["input_end_treatment"].astype(float)
+            if "input_end_treatment" in rows
+            else rows.get("current_treatment", pd.Series(0.0, index=rows.index)).astype(float),
+            "target_treatment": rows["target_treatment"].astype(float)
+            if "target_treatment" in rows
+            else rows.get("input_end_treatment", pd.Series(0.0, index=rows.index)).astype(float),
+            "input_volume_vox": rows["input_volume_vox"].astype(float),
+            "target_volume_vox": rows["target_volume_vox"].astype(float),
+            "persistent_volume_vox": np.nan,
+            "union_volume_vox": np.nan,
+            "new_growth_volume_vox": rows["growth_volume_vox"].astype(float),
+            "loss_volume_vox": rows["loss_volume_vox"].astype(float),
+            "net_delta_volume_vox": rows["net_delta_volume_vox"].astype(float)
+            if "net_delta_volume_vox" in rows
+            else rows["target_volume_vox"].astype(float) - rows["input_volume_vox"].astype(float),
+            "absolute_change_volume_vox": rows["growth_volume_vox"].astype(float) + rows["loss_volume_vox"].astype(float),
+            "relative_new_growth": rows["relative_new_growth"].astype(float),
+            "relative_loss": rows["relative_loss"].astype(float),
+            "relative_net_growth": rows["relative_net_growth"].astype(float),
+            "relative_absolute_change": rows["relative_new_growth"].astype(float) + rows["relative_loss"].astype(float),
+            "locf_dice": rows["locf_dice"].astype(float),
+        }
+    )
+    return add_derived_features(out)
 
 
 def compute_samples(dataset_root: Path, samples: List[ForecastSample], manifest: pd.DataFrame | None) -> pd.DataFrame:
@@ -443,6 +502,15 @@ def main() -> None:
     parser.add_argument("--interval_bins", type=str, default="0,30,60,90,180,365,inf")
     parser.add_argument("--output_dir", type=str, required=True)
     parser.add_argument("--no_plots", action="store_true")
+    parser.add_argument(
+        "--manifest_feature_mode",
+        choices=["auto", "features", "recompute"],
+        default="auto",
+        help=(
+            "For manifest runs, use existing manifest growth/LOCF columns when available "
+            "('features'), force mask recomputation ('recompute'), or choose automatically."
+        ),
+    )
     args = parser.parse_args()
 
     dataset_root = Path(args.dataset_root)
@@ -450,7 +518,40 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     samples_l, manifest = build_samples(args)
-    samples = add_bins(compute_samples(dataset_root, samples_l, manifest), _parse_float_bins(args.interval_bins))
+    use_manifest_features = (
+        manifest is not None
+        and args.manifest_feature_mode in {"auto", "features"}
+        and manifest_has_operating_features(manifest)
+    )
+    if args.manifest_feature_mode == "features" and not use_manifest_features:
+        missing = sorted(
+            {
+                "patient_id",
+                "input_idx",
+                "target_idx",
+                "horizon",
+                "delta_days",
+                "input_volume_vox",
+                "target_volume_vox",
+                "growth_volume_vox",
+                "loss_volume_vox",
+                "relative_new_growth",
+                "relative_loss",
+                "relative_net_growth",
+                "locf_dice",
+            }
+            - set(manifest.columns if manifest is not None else [])
+        )
+        raise ValueError(f"Manifest feature mode requested, but required columns are missing: {missing}")
+
+    if use_manifest_features:
+        samples = compute_samples_from_manifest_features(manifest, _parse_csv(args.splits))
+        feature_source = "manifest_features"
+    else:
+        samples = compute_samples(dataset_root, samples_l, manifest)
+        feature_source = "recomputed_from_masks"
+
+    samples = add_bins(samples, _parse_float_bins(args.interval_bins))
 
     tables = {
         "Overall": summarize(samples, []),
@@ -480,6 +581,7 @@ def main() -> None:
         "manifest_csv": args.manifest_csv,
         "n_samples": int(len(samples)),
         "n_patients": int(samples["patient_id"].nunique()),
+        "feature_source": feature_source,
         "output_dir": str(output_dir),
         "outputs": {
             "samples_csv": str(output_dir / "locf_operating_samples.csv"),

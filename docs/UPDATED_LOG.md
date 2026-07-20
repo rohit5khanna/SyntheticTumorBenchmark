@@ -67,6 +67,8 @@ Implementation note: a focused LOCF operating-range script was added:
 
 The script computes per-window persistence, growth, loss, elapsed time, growth-rate, and LOCF Dice features. It supports both standard split/horizon datasets and longitudinal manifest CSVs. Outputs include compact summaries by interval bins, growth-rate bins, interval-by-growth-rate interactions, correlations, standardized regression coefficients, and simple diagnostic figures.
 
+Follow-up fix: the script now uses existing manifest feature columns directly when available. This is important for SAILOR Colab runs because the longitudinal manifest already contains `locf_dice`, growth volume, loss volume, interval, split, and direction columns, so this specific analysis should not require copying or loading the full SAILOR `.npy` dataset.
+
 ## 2026-07-11: Workspace Consolidation And Research Restart
 
 After a one-week pause, the project was restarted with two priorities:
