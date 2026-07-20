@@ -1,5 +1,35 @@
 # Updated Log
 
+## 2026-07-20: Transition Label Robustness Result
+
+Ran the transition-label robustness audit comparing SAILOR and SRD transition-taxonomy samples across 576 threshold settings.
+
+Main result: the most important SRD-SAILOR transition differences survived threshold variation.
+
+- `distant_growth_present` remained consistently higher in SAILOR than SRD across all threshold settings. Mean SAILOR fraction was 0.428 versus SRD 0.067, with a mean fraction gap of +0.361 and positive gap rate 1.00.
+- `mixed_growth_loss` remained higher in SAILOR than SRD across all threshold settings. Mean SAILOR fraction was 0.353 versus SRD 0.000, with a mean fraction gap of +0.353 and positive gap rate 1.00.
+- `persistence_dominant` remained consistently higher in SRD than SAILOR. Mean SAILOR fraction was 0.037 versus SRD 0.320, with positive SAILOR-SRD gap rate 0.00.
+- `growth_dominant` remained consistently higher in SRD than SAILOR under the tested grid. Mean SAILOR fraction was 0.259 versus SRD 0.486, with positive SAILOR-SRD gap rate 0.00.
+- `high_absolute_change` remained higher in SAILOR than SRD across all threshold settings, but the gap was smaller than mixed/distant growth. Mean gap was +0.068 with positive gap rate 1.00.
+- `core_loss_present` and `loss_dominant` were less stable than the mixed-growth/loss and distant-growth claims. They should be treated as secondary/supporting descriptors rather than central claims.
+
+Patient-spread check at the default thresholds showed that the SAILOR hard regions are not dominated by a single patient:
+
+- distant growth: 65 transitions across 20 patients; largest single-patient share 0.108.
+- mixed growth/loss: 53 transitions across 16 patients; largest single-patient share 0.189.
+- core loss: 38 transitions across 17 patients; largest single-patient share 0.105.
+- high absolute change: 12 transitions across 9 patients; largest single-patient share 0.250.
+
+Reference-quantile coverage further supported the SRD-SAILOR mismatch:
+
+- for SAILOR median distant-growth fraction, only 8.9% of SRD transitions were at or above that threshold;
+- for SAILOR 75th-percentile distant-growth fraction, only 2.4% of SRD transitions were at or above that threshold;
+- for SAILOR 90th-percentile distant-growth fraction, SRD had 0 matching transitions;
+- for SAILOR 75th- and 90th-percentile relative absolute change rate, SRD had 0 matching transitions;
+- SRD had 0 transitions at or above SAILOR median input volume.
+
+Interpretation: the transition evidence package now has a stronger backbone. The central robust claim is not merely that SAILOR has lower LOCF Dice than SRD. The stronger claim is that SAILOR occupies transition regions that SRD largely does not: mixed growth/loss, non-boundary growth, larger tumor scale, and high rate-normalized change. SRD remains useful as controlled mechanism isolation, while SAILOR exposes real transition complexity.
+
 ## 2026-07-20: Transition Label Robustness Audit Added
 
 Added `scripts/audit_transition_label_robustness.py` to stress-test whether the transition-analysis findings depend on one arbitrary threshold choice or a small number of patients.
