@@ -196,6 +196,7 @@ For each transition, quantify:
 #### Current Status
 - Patient bootstrap used for selected SAILOR method results.
 - Seed repeat run for growth-only model exists.
+- Patient-bootstrap tooling has been added for the conservative persistence-breakdown predictability audit.
 
 #### Missing
 - Repeated patient split analysis.
@@ -251,11 +252,12 @@ For each transition, quantify:
 #### Current Status
 - Logistic direction gate had weak/non-random signal but collapsed under validation-selected Dice objective.
 - Direction classifier AUC was modest.
+- Conservative persistence-breakdown prediction now avoids target-derived treatment variables and can be evaluated with patient-bootstrap uncertainty.
 
 #### Missing
 - A scientifically evaluated transition-state classifier independent of model-selection/Dice gating.
 - Feature importance and calibration for transition-state prediction.
-- Patient-level cross-validation.
+- Patient-level cross-validation and bootstrap summaries for transition-state prediction.
 - Comparison of input-history features, image features, treatment features, and prior volume trend.
 
 ## 5. Model Behavior Audit

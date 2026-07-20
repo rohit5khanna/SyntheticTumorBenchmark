@@ -223,6 +223,101 @@ def threshold_sweep(preds: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _classification_metrics(y: np.ndarray, score: np.ndarray, threshold: float) -> Dict[str, float]:
+    from sklearn.metrics import (
+        accuracy_score,
+        average_precision_score,
+        balanced_accuracy_score,
+        precision_score,
+        recall_score,
+        roc_auc_score,
+    )
+
+    pred = (score >= threshold).astype(int)
+    return {
+        "accuracy": _safe_metric(accuracy_score, y, pred),
+        "balanced_accuracy": _safe_metric(balanced_accuracy_score, y, pred),
+        "roc_auc": _safe_metric(roc_auc_score, y, score),
+        "average_precision": _safe_metric(average_precision_score, y, score),
+        "precision": _safe_metric(lambda yt, yp: precision_score(yt, yp, zero_division=0), y, pred),
+        "recall": _safe_metric(lambda yt, yp: recall_score(yt, yp, zero_division=0), y, pred),
+        "false_negative_rate": float(((y == 1) & (pred == 0)).sum() / max(1, (y == 1).sum())),
+        "false_positive_rate": float(((y == 0) & (pred == 1)).sum() / max(1, (y == 0).sum())),
+        "predicted_positive_rate": float(pred.mean()),
+    }
+
+
+def patient_bootstrap_metrics(
+    preds: pd.DataFrame,
+    n_bootstrap: int,
+    seed: int,
+    threshold: float,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    if preds.empty or n_bootstrap <= 0:
+        return pd.DataFrame(), pd.DataFrame()
+
+    rng = np.random.default_rng(seed)
+    draw_rows = []
+    summary_rows = []
+    metric_cols = [
+        "accuracy",
+        "balanced_accuracy",
+        "roc_auc",
+        "average_precision",
+        "precision",
+        "recall",
+        "false_negative_rate",
+        "false_positive_rate",
+        "predicted_positive_rate",
+    ]
+
+    for (model, split), part in preds.groupby(["model", "split"], observed=True):
+        patients = np.array(sorted(part["patient_id"].dropna().unique()))
+        if len(patients) == 0:
+            continue
+
+        patient_parts = {pid: rows for pid, rows in part.groupby("patient_id", observed=True)}
+        for draw_idx in range(n_bootstrap):
+            sampled_patients = rng.choice(patients, size=len(patients), replace=True)
+            sampled = pd.concat([patient_parts[pid] for pid in sampled_patients], ignore_index=True)
+            y = sampled["persistence_breakdown_label"].astype(int).to_numpy()
+            score = sampled["breakdown_score"].to_numpy()
+            metrics = _classification_metrics(y, score, threshold=threshold)
+            row = {
+                "model": model,
+                "split": split,
+                "draw_idx": int(draw_idx),
+                "n_patients_sampled": int(len(sampled_patients)),
+                "n_unique_patients": int(len(set(sampled_patients))),
+                "n_samples": int(len(sampled)),
+                "positive_rate": float(np.mean(y)),
+            }
+            row.update(metrics)
+            draw_rows.append(row)
+
+        group_draws = pd.DataFrame([r for r in draw_rows if r["model"] == model and r["split"] == split])
+        row = {
+            "model": model,
+            "split": split,
+            "n_bootstrap": int(n_bootstrap),
+            "n_original_patients": int(len(patients)),
+            "n_original_samples": int(len(part)),
+            "threshold": float(threshold),
+        }
+        for metric in metric_cols:
+            values = group_draws[metric].dropna().to_numpy()
+            row[f"{metric}_mean"] = float(np.mean(values)) if len(values) else float("nan")
+            row[f"{metric}_ci_low"] = float(np.quantile(values, 0.025)) if len(values) else float("nan")
+            row[f"{metric}_ci_high"] = float(np.quantile(values, 0.975)) if len(values) else float("nan")
+            row[f"{metric}_valid_draws"] = int(len(values))
+        for metric in ["balanced_accuracy", "roc_auc", "average_precision", "recall"]:
+            values = group_draws[metric].dropna().to_numpy()
+            row[f"prob_{metric}_gt_0p5"] = float(np.mean(values > 0.5)) if len(values) else float("nan")
+        summary_rows.append(row)
+
+    return pd.DataFrame(draw_rows), pd.DataFrame(summary_rows)
+
+
 def feature_univariate_summary(df: pd.DataFrame, features: List[str]) -> pd.DataFrame:
     rows = []
     for feature in features:
@@ -271,6 +366,8 @@ def main() -> None:
     parser.add_argument("--features", type=str, default=",".join(DEFAULT_FEATURES))
     parser.add_argument("--change_col", type=str, default="relative_absolute_change")
     parser.add_argument("--high_quantile", type=float, default=2.0 / 3.0)
+    parser.add_argument("--n_bootstrap", type=int, default=0)
+    parser.add_argument("--bootstrap_threshold", type=float, default=0.5)
     parser.add_argument("--output_dir", type=str, required=True)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
@@ -303,6 +400,12 @@ def main() -> None:
     feature_weights = pd.concat(coef_parts, ignore_index=True)
     sweep = threshold_sweep(predictions)
     univariate = feature_univariate_summary(data[data["split"].isin([args.train_split] + eval_splits)], features)
+    bootstrap_draws, bootstrap_summary = patient_bootstrap_metrics(
+        predictions,
+        n_bootstrap=args.n_bootstrap,
+        seed=args.seed,
+        threshold=args.bootstrap_threshold,
+    )
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -312,6 +415,9 @@ def main() -> None:
     feature_weights.to_csv(output_dir / "persistence_breakdown_feature_weights.csv", index=False)
     sweep.to_csv(output_dir / "persistence_breakdown_threshold_sweep.csv", index=False)
     univariate.to_csv(output_dir / "persistence_breakdown_univariate_features.csv", index=False)
+    if not bootstrap_draws.empty:
+        bootstrap_draws.to_csv(output_dir / "persistence_breakdown_patient_bootstrap_draws.csv", index=False)
+        bootstrap_summary.to_csv(output_dir / "persistence_breakdown_patient_bootstrap_summary.csv", index=False)
 
     tables = {
         "Model Summary": model_summary,
@@ -319,6 +425,8 @@ def main() -> None:
         "Threshold Sweep": sweep,
         "Univariate Feature Summary": univariate,
     }
+    if not bootstrap_summary.empty:
+        tables["Patient Bootstrap Summary"] = bootstrap_summary
     write_report(output_dir / "persistence_breakdown_predictability_report.md", threshold, features, tables)
 
     payload = {
@@ -329,6 +437,8 @@ def main() -> None:
         "high_quantile": float(args.high_quantile),
         "train_defined_threshold": threshold,
         "features": features,
+        "n_bootstrap": int(args.n_bootstrap),
+        "bootstrap_threshold": float(args.bootstrap_threshold),
         "n_rows": int(len(data)),
         "output_dir": str(output_dir),
         "outputs": {
@@ -336,6 +446,9 @@ def main() -> None:
             "model_summary_csv": str(output_dir / "persistence_breakdown_model_summary.csv"),
             "feature_weights_csv": str(output_dir / "persistence_breakdown_feature_weights.csv"),
             "threshold_sweep_csv": str(output_dir / "persistence_breakdown_threshold_sweep.csv"),
+            "patient_bootstrap_summary_csv": str(output_dir / "persistence_breakdown_patient_bootstrap_summary.csv")
+            if not bootstrap_summary.empty
+            else None,
             "report_md": str(output_dir / "persistence_breakdown_predictability_report.md"),
         },
     }

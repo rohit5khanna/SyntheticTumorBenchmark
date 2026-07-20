@@ -4606,3 +4606,20 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
   3. Model behavior audit: use LOCF, direct ResUNet, residual-change, and growth-only models as probes to determine where each model helps or hurts, and whether gains come from persistence preservation, growth addition, or volume changes.
   4. Principled method prototype: refine the asymmetric persistence-preserving growth model only after the above analysis, including budgeted growth versus thresholded growth, seed/split robustness, mask-only versus image+mask variants, and possible distance/candidate-region priors.
 - Near-term goal: by the end of the week, be able to state clearly which parts of tumor transition are persistent, learnable, uncertain, and model-sensitive. This should become the backbone of the eventual paper, rather than a leaderboard-style baseline comparison.
+
+## 2026-07-20 - Conservative Persistence-Breakdown Predictability Result
+
+- Reviewed the conservative SAILOR persistence-breakdown predictability audit after removing target-side treatment variables from the predictor set.
+- Predictor set used only information available at or before the input window: `delta_days`, `input_span_days`, `input_volume_vox`, `input_end_treatment`, `treatment_changed_in_input`, `previous_growth_volume_vox`, `previous_loss_volume_vox`, and `previous_growth_ratio`.
+- The signal did not disappear after removing target-treatment variables. Logistic regression achieved test ROC-AUC 0.654 and balanced accuracy 0.594; the shallow tree achieved test ROC-AUC 0.654 and balanced accuracy 0.639.
+- At a default 0.5 threshold, the tree recovered most high-change test cases with recall 0.857 but low precision 0.353, meaning the score is better interpreted as a conservative risk flag than as a clean hard classifier.
+- Main recurring predictors were input tumor volume, previous growth ratio, previous growth volume, and delta days. In both logistic and tree models, smaller input volume and larger recent growth tendency were associated with higher persistence-breakdown risk.
+- Univariate summaries support the same direction: high-breakdown cases had lower mean input volume (45,838 voxels versus 81,541) and higher previous growth ratio (1.027 versus 0.761), while calendar interval alone separated cases only weakly.
+- Interpretation: persistence breakdown is partially predictable from pre-target transition context, but current evidence is weak-to-moderate and patient-count limited. This supports using operating-regime scores as soft analysis tools or candidate selectors, not yet as a deployable gate.
+
+## 2026-07-20 - Patient-Bootstrap Tooling For Persistence-Breakdown Audit
+
+- Extended `scripts/analyze_persistence_breakdown_predictability.py` with optional patient-level bootstrap support.
+- The bootstrap resamples patients within each evaluation split and recomputes accuracy, balanced accuracy, ROC-AUC, average precision, precision, recall, false-negative rate, and false-positive rate at a chosen classification threshold.
+- Motivation: the conservative persistence-breakdown audit shows weak-to-moderate predictive signal, but SAILOR windows are correlated within patients. We should not treat window-level metrics as stable without patient-level uncertainty.
+- This change directly supports the Final Draft Map requirements around randomness/artifact risk and transition-state predictability.
