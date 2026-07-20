@@ -159,9 +159,10 @@ For each transition, quantify:
 #### Current Status
 - Many of these quantities are computed in scripts across SAILOR analyses.
 - Growth/loss decomposition exists in residual and transition-error scripts.
+- Unified transition-taxonomy tooling has been added to produce per-transition persistence, growth, loss, rate, type, and patient-trajectory tables for SRD and SAILOR.
 
 #### Missing
-- A unified transition taxonomy script/table for SRD and SAILOR.
+- Run and review unified transition taxonomy tables for both SRD and SAILOR.
 - Figures showing distribution of persistence/growth/loss components.
 - Separate summary by horizon, patient, tier/regime, treatment status, and time interval.
 
@@ -179,9 +180,10 @@ For each transition, quantify:
 #### Current Status
 - Net-growth/net-shrinkage categories are used.
 - SRD case types exist from LOCF versus ResUNet behavior.
+- Transition-taxonomy tooling now assigns descriptive categories such as persistence-dominant, growth-dominant, loss-dominant, mixed growth/loss, boundary-growth-dominant, and distant-growth-present.
 
 #### Missing
-- Boundary versus distant growth analysis.
+- Review boundary versus distant growth analysis after recomputed-mask runs.
 - Mixed spatial-change category independent of net volume change.
 - Patient-level transition trajectories.
 - Whether transition types are stable within patient or change over time.

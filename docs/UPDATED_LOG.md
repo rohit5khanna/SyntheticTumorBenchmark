@@ -4632,3 +4632,11 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
 - Recall-oriented behavior survived better than precision-oriented behavior. At threshold 0.5, the tree test recall was 0.714, with bootstrap probability of recall above 0.5 equal to 0.934; validation recall was 0.778, with bootstrap probability 0.864.
 - The threshold sweep reinforces the same tradeoff: low thresholds catch most persistence-breakdown cases but produce many false positives. This is acceptable for a risk-screening interpretation but not for a precise model-selection gate.
 - Interpretation: pre-target features contain a real but noisy signal about when LOCF/persistence may break. The correct use is as an operating-regime risk score or analysis variable, not as a binary switch for forecasting methods unless future work improves precision and patient-level stability.
+
+## 2026-07-20 - Unified Transition Taxonomy Tooling Added
+
+- Added `scripts/analyze_transition_taxonomy.py` to decompose longitudinal forecasting transitions into persistent tumor, new growth, apparent loss, net change, rate-normalized change, and descriptive transition types.
+- The script supports manifest-feature mode for fast runs and recomputed-mask mode for spatial descriptors such as boundary-adjacent growth, distant growth, boundary loss, core loss, and growth/loss connected-component counts.
+- Outputs include per-transition samples, patient trajectory summaries, split/tier/horizon/net-direction/transition-type summaries, and figures for growth-loss decomposition, transition-type counts, and the persistence operating surface.
+- Motivation: the project should not rest only on aggregate Dice or small model gains. This taxonomy is intended to make the data-mining object explicit: which parts of each transition are persistent, expanding, disappearing, boundary-local, distant, patient-specific, or time-dependent.
+- This directly addresses the Final Draft Map items on transition taxonomy, randomness/artifact risk, and patient-level trajectory analysis. The next step is to run the taxonomy on SAILOR and SRD, then inspect whether the resulting categories are stable and scientifically meaningful.
