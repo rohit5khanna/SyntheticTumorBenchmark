@@ -112,7 +112,8 @@ def merge_models(locf: pd.DataFrame, models: Dict[str, Path]) -> pd.DataFrame:
         gap_col = f"{label}_gap_vs_locf"
         win_col = f"{label}_beats_locf"
         merged[gap_col] = merged[dice_col] - merged["locf_dice"]
-        merged[win_col] = merged[gap_col] > 0
+        # Keep unavailable model rows as missing rather than counting them as losses.
+        merged[win_col] = np.where(merged[dice_col].notna(), merged[gap_col] > 0, np.nan)
     return merged
 
 
