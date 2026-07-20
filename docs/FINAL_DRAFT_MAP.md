@@ -22,15 +22,15 @@ Longitudinal tumor transitions combine at least three different components:
 These components have different statistical behavior, different learnability, and different modeling requirements. A data-mining approach should first characterize temporal gap, growth rate, and transition structure, then design/evaluate forecasting methods around those components.
 
 ### Current Status
-- Supported directionally by SAILOR analyses: LOCF remains strong, direct ResUNet helps growth cases more than shrinkage cases, growth ranking signal exists, and loss prediction is unreliable.
-- Supported directionally by SRD regime analyses, but the SRD-to-SAILOR bridge is not yet fully formalized.
+- Supported by SAILOR analyses: LOCF remains strong overall, but its operating range depends on transition burden, net direction, and spatial reorganization.
+- Supported by SRD analyses as a controlled mechanism-isolation environment: SRD separates growth, shrinkage, and persistence axes more cleanly than real data.
+- Supported by the SAILOR-vs-SRD transition domain-gap analysis: SAILOR contains mixed growth/loss, non-boundary growth, larger tumor scale, and high-change tails that SRD does not attempt to fully mimic.
 
 ### Missing
 - A formal claim-evidence map separating what is proven, suggestive, unsupported, or contradicted.
-- A concise conceptual figure showing persistence, growth, and apparent loss as separate transition components.
+- A concise conceptual figure showing persistence, growth, apparent loss, and non-boundary growth as separate transition components.
 - A clear falsification criterion: what evidence would make us reject this decomposition as useful?
-- A formal operational definition of "short-term" using session horizon, calendar horizon, and observed growth/change rate.
-- LOCF-limit analysis showing where persistence breaks down as a function of time gap and growth rate.
+- A final curated claim-evidence table distinguishing controlled SRD findings from real-data SAILOR findings.
 
 ## 1.1 Definition Of Short-Term Forecasting
 
@@ -88,15 +88,17 @@ LOCF should break down when either elapsed time or growth/change rate becomes la
 - Existing SRD generation code and parameter ranges exist.
 - Prior tier-level and case-type analyses exist.
 - SRD has been used heavily for initial regime analysis and model comparisons.
-- Transition-taxonomy comparison tooling has been added to quantify where SRD covers or misses SAILOR-like transition structure.
+- Transition-taxonomy comparison tooling has quantified where SRD covers or misses SAILOR-like transition structure.
+- Decision: do not add another synthetic generation at this stage. SRD should be framed as a controlled environment for isolating mechanisms, while SAILOR should carry the real transition-complexity analysis.
+- Domain-gap analysis showed that SRD does not reproduce several SAILOR-heavy regions, including mixed growth/loss, high-change tails, larger tumor scale, and distant/non-boundary growth.
 
 #### Missing
 - Multiple SRD realizations beyond current fixed dataset.
 - Explicit sensitivity analysis over generation seed.
 - Clear distinction between generator-controlled tier labels and discovered transition categories.
-- A table decomposing SRD transitions into persistence/growth/loss components.
+- A final table decomposing SRD transitions into persistence/growth/loss components.
 - Evidence that key SRD findings are not artifacts of one synthetic realization.
-- If SRD misses important SAILOR transition regions, a principled decision is needed: either extend SRD or explicitly frame it as a controlled mechanism-isolation environment.
+- A crisp statement that SRD is intentionally retained as a controlled mechanism-isolation environment rather than expanded into a more complex real-data mimic.
 
 ### 2.2 SAILOR Real-Data Processing
 
@@ -133,6 +135,7 @@ LOCF should break down when either elapsed time or growth/change rate becomes la
 #### Current Status
 - Possible dataset document exists.
 - SAILOR is the only real dataset tested so far.
+- Current strategy is to strengthen SAILOR robustness and transition analysis before expanding to a second real dataset.
 
 #### Missing
 - Practical access decision for at least one additional dataset.
@@ -162,9 +165,10 @@ For each transition, quantify:
 - Many of these quantities are computed in scripts across SAILOR analyses.
 - Growth/loss decomposition exists in residual and transition-error scripts.
 - Unified transition-taxonomy tooling has been added to produce per-transition persistence, growth, loss, rate, type, and patient-trajectory tables for SRD and SAILOR.
+- SAILOR and SRD transition-taxonomy outputs have been run and reviewed.
+- SAILOR shows substantial mixed growth/loss and non-boundary spatial change; SRD shows cleaner isolated growth, shrinkage, and persistence axes.
 
 #### Missing
-- Run and review unified transition taxonomy tables for both SRD and SAILOR.
 - Figures showing distribution of persistence/growth/loss components.
 - Separate summary by horizon, patient, tier/regime, treatment status, and time interval.
 
@@ -184,9 +188,9 @@ For each transition, quantify:
 - SRD case types exist from LOCF versus ResUNet behavior.
 - Transition-taxonomy tooling now assigns descriptive categories such as persistence-dominant, growth-dominant, loss-dominant, mixed growth/loss, boundary-growth-dominant, and distant-growth-present.
 - Radius-sensitivity tooling has been added to test whether boundary/distant labels depend on one arbitrary voxel radius.
+- SAILOR radius sensitivity shows that absolute distant-growth rates are radius-dependent, but the comparative finding survives: harder net-growth/mixed-change transitions carry more non-boundary spatial change than easier boundary-local transitions.
 
 #### Missing
-- Review boundary versus distant growth analysis after recomputed-mask and radius-sensitivity runs.
 - Mixed spatial-change category independent of net volume change.
 - Patient-level transition trajectories.
 - Whether transition types are stable within patient or change over time.
@@ -529,17 +533,17 @@ No central claim should rely on a single random realization. Each claim must be 
 
 | Claim | Current Evidence | Current Status | Missing Evidence | Risk If Unfixed |
 |---|---|---|---|---|
-| Short-horizon forecasting mixes persistence, growth, and loss | SAILOR/SRD decomposition scripts partially available | Suggestive | Unified taxonomy across SRD/SAILOR | Claim may sound conceptual but not proven |
+| Short-horizon forecasting mixes persistence, growth, and loss | SAILOR/SRD transition-taxonomy analyses | Supported directionally | Final curated table/figure package and patient-count reporting | Claim may be too broad if not tied to transition components |
 | Growth is learnable as ranking | Residual probability diagnostic: growth AUC high | Strong but narrow | Distance baseline, direct model comparison, dedicated model AP/AUC | Could be artifact of one checkpoint/resolution |
 | Loss is not symmetric with growth | Residual loss AUC poor/inverted | Suggestive | Boundary/treatment/registration analysis | Could be just bad model/loss function |
 | Growth-only model is better aligned than full residual | Seeds 42/123 positive trend | Replicated but limited | More seeds/splits/fair direct comparison | Could be small random effect |
 | Direct ResUNet helps growth but hurts shrinkage | SAILOR split v2 direct result | Suggestive | Same-resolution comparison, bootstrap, seed repeat | Could be split/checkpoint artifact |
-| SRD regimes connect to real transition behavior | Some bridge analyses exist | Weak | Formal SRD-SAILOR transition comparison | Synthetic story may feel disconnected |
+| SRD is a controlled mechanism-isolation environment, not a SAILOR surrogate | SRD taxonomy plus SAILOR-vs-SRD domain-gap analysis | Supported | Clear manuscript framing and no overclaiming transfer | Synthetic work may be misread as failed realism rather than controlled isolation |
 
 ## 13. Immediate Next Audit Tasks
 
-1. Build unified transition taxonomy table for SRD and SAILOR.
-2. Build claim-evidence-status table from all existing results.
+1. Build claim-evidence-status table from all existing results.
+2. Curate the SRD/SAILOR transition-taxonomy and domain-gap outputs into a compact evidence package.
 3. Create random-state inventory: dataset seeds, split seeds, model seeds, stochastic scripts.
 4. Build same-resolution SAILOR method comparison plan.
 5. Run/prepare distance-to-mask growth ranking baseline on SAILOR.

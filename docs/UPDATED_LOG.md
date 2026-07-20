@@ -1,5 +1,32 @@
 # Updated Log
 
+## 2026-07-20: SRD-SAILOR Framing Consolidated In Current Documents
+
+After reviewing the SRD transition taxonomy, SAILOR transition taxonomy, radius-sensitivity checks, and SRD-SAILOR domain-gap analysis, we fixed the current conceptual framing across the project documents.
+
+Core decision:
+
+`SRD is a controlled mechanism-isolation environment; SAILOR is the real transition-complexity audit.`
+
+This matters because the domain-gap result showed that SRD is not a close synthetic surrogate for SAILOR. SAILOR contains substantially more mixed growth/loss, non-boundary growth, apparent core loss, larger tumor scale, and high-change tails. SRD, by contrast, separates persistence, growth, shrinkage, tier, and horizon effects more cleanly.
+
+We decided not to start another synthetic generation cycle just to make SRD look more like SAILOR. For the current research phase, that would complicate the controlled setup and blur the scientific role of SRD. Instead:
+
+- SRD should be used to isolate mechanisms under controlled conditions.
+- SAILOR should be used to characterize real short-horizon transition complexity.
+- The SRD-SAILOR mismatch should be reported as an informative domain-gap finding, not hidden or treated as a failed synthetic dataset.
+
+Documents updated to reflect this:
+
+- `docs/FINAL_DRAFT_MAP.md`
+- `docs/CURRENT_EVIDENCE_CHAIN_JULY16.md`
+- `docs/RESEARCH_QUESTIONS.md`
+- `docs/PROJECT_MAP.md`
+
+Current interpretation:
+
+The strongest direction is no longer "make a better synthetic benchmark" or "add more models." The stronger data-mining object is the transition itself: persistence, new growth, apparent loss, net direction, boundary versus non-boundary change, transition burden, and patient-level heterogeneity. SRD and SAILOR now play complementary roles in studying that object.
+
 ## 2026-07-19: Short-Horizon Residual Forecaster Design Framed
 
 After reviewing the literature and the current SAILOR/SRD evidence, we paused before adding another model variant and defined a cleaner method direction.
