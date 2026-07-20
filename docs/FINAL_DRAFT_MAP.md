@@ -533,25 +533,29 @@ No central claim should rely on a single random realization. Each claim must be 
 
 | Claim | Current Evidence | Current Status | Missing Evidence | Risk If Unfixed |
 |---|---|---|---|---|
-| Short-horizon forecasting mixes persistence, growth, and loss | SAILOR/SRD transition-taxonomy analyses | Supported directionally | Final curated table/figure package and patient-count reporting | Claim may be too broad if not tied to transition components |
-| Growth is learnable as ranking | Residual probability diagnostic: growth AUC high | Strong but narrow | Distance baseline, direct model comparison, dedicated model AP/AUC | Could be artifact of one checkpoint/resolution |
-| Loss is not symmetric with growth | Residual loss AUC poor/inverted | Suggestive | Boundary/treatment/registration analysis | Could be just bad model/loss function |
-| Growth-only model is better aligned than full residual | Seeds 42/123 positive trend | Replicated but limited | More seeds/splits/fair direct comparison | Could be small random effect |
-| Direct ResUNet helps growth but hurts shrinkage | SAILOR split v2 direct result | Suggestive | Same-resolution comparison, bootstrap, seed repeat | Could be split/checkpoint artifact |
-| SRD is a controlled mechanism-isolation environment, not a SAILOR surrogate | SRD taxonomy plus SAILOR-vs-SRD domain-gap analysis | Supported | Clear manuscript framing and no overclaiming transfer | Synthetic work may be misread as failed realism rather than controlled isolation |
+| Short-horizon forecasting is not uniform | SRD tier/horizon results; SAILOR LOCF operating range; SAILOR transition taxonomy | Strong descriptive claim | Patient-count reporting, threshold/radius sensitivity, final figure package | Claim may sound obvious unless tied to measurable transition components |
+| LOCF has an operating range, not a universal baseline role | LOCF Dice versus transition burden/time/growth-rate analyses | Strong but must be phrased carefully | Separate calendar horizon from biological/change horizon | Could become tautological because LOCF Dice is mathematically tied to change burden |
+| SRD is a controlled mechanism-isolation environment | SRD taxonomy plus SAILOR-vs-SRD domain-gap analysis | Strong within current framing | Clear statement that exact SRD proportions are dataset-specific | Synthetic work may be misread as a failed real-data surrogate |
+| SAILOR exposes real transition complexity absent from SRD | SAILOR taxonomy, radius sensitivity, domain-gap analysis | Strong descriptive claim | Compact table with patient/split counts | Reviewers may question dataset size unless uncertainty is visible |
+| Growth-front ranking should be separated from full-mask Dice | SRD/SAILOR ranking analyses and ranking-Dice tradeoff | Strong conceptual claim | Always include distance/random baselines and conversion-to-mask bottleneck | Ranking improvements may not translate into usable masks |
+| Boundary proximity is a useful growth prior | Distance and delayed-hit analyses | Strong but incomplete prior | Clarify non-boundary/distant growth cases | Could be oversold as sufficient when SAILOR shows distant growth |
+| Image/context models add signal beyond distance | Cropped SAILOR ranking and paired gains | Moderate/promising | More patient-level validation and split/seed robustness | Could be small-sample or crop-selection artifact |
+| Growth-budget estimation is a bottleneck | Ranking-Dice tradeoff, SRD budgeted policy, SAILOR conservative growth-only results | Strong methodological diagnosis | Forecast-origin budget predictors | Method may look like threshold tuning if this is not formalized |
+| Growth-only residual forecasting is a mature method contribution | SAILOR seeds 42/123 show small positive trends | Weak-to-moderate, not central yet | Same-resolution baselines, more seeds/splits, patient bootstrap, failure analysis | Small gains could be over-engineered or non-robust |
+| Loss/shrinkage is symmetric with growth | Residual-change experiments | Rejected for now | Treatment/registration/loss-specific analysis | Symmetric residual modeling may hurt credibility |
+| Regime-aware priors improve forecasting | Decomposition evidence and early method probes | Plausible but unproven | A clean prior-driven method with robust gains | Premature method claims could weaken the whole project |
 
 ## 13. Immediate Next Audit Tasks
 
-1. Build claim-evidence-status table from all existing results.
-2. Curate the SRD/SAILOR transition-taxonomy and domain-gap outputs into a compact evidence package.
-3. Create random-state inventory: dataset seeds, split seeds, model seeds, stochastic scripts.
-4. Build same-resolution SAILOR method comparison plan.
-5. Run/prepare distance-to-mask growth ranking baseline on SAILOR.
-6. Analyze loss spatially: boundary versus core, treatment, interval.
-7. Aggregate growth-only seeds 42 and 123 into one table.
-8. Decide whether to run seed 777 or repeated patient split next.
-9. Curate figure/table manifest.
-10. Decide which claims are strong enough for a workshop submission and which remain future work.
+1. Curate the SRD/SAILOR transition-taxonomy and domain-gap outputs into a compact evidence package.
+2. Create random-state inventory: dataset seeds, split seeds, model seeds, stochastic scripts.
+3. Build a same-resolution SAILOR comparison plan so direct ResUNet, residual-change, growth-only, and LOCF are not compared unfairly.
+4. Formalize the budget-estimation problem using only forecast-origin features.
+5. Analyze loss spatially: boundary versus core, treatment, interval, and possible registration/segmentation ambiguity.
+6. Aggregate growth-only seeds 42 and 123 into one table, but do not elevate it to a main method claim yet.
+7. Decide whether seed 777 or repeated patient split is the next strongest robustness step.
+8. Curate figure/table manifest around transition components rather than model leaderboard.
+9. Decide which claims are strong enough to be central and which must remain exploratory.
 
 ## 14. Quality Bar
 

@@ -1,5 +1,27 @@
 # Updated Log
 
+## 2026-07-20: Ruthless Claim-Evidence Audit Added
+
+Added a stricter claim-evidence audit to the current evidence chain and tightened the claim table in the final draft map.
+
+The purpose of this update is to separate:
+
+- results that are genuinely strong descriptive findings;
+- results that are promising but not yet central;
+- claims that should be rejected or avoided for now;
+- and method ideas that remain plausible but unproven.
+
+Key standards recorded:
+
+- Do not center the project on small Dice gains from the current growth-only SAILOR model. The result is promising but not yet strong enough to carry the work.
+- Treat LOCF operating range as an analytical characterization, not a surprising causal discovery, because LOCF Dice is mechanically related to transition burden.
+- Treat boundary proximity as a strong but incomplete growth prior, because SAILOR contains meaningful non-boundary/distant growth.
+- Treat image/context improvement over distance as promising but still sample-size-limited.
+- Reject the claim that SRD is a realistic SAILOR surrogate.
+- Reject symmetric growth/loss residual modeling as the default path for now; loss/shrinkage needs a separate uncertainty-sensitive analysis.
+
+This update intentionally raises the evidentiary bar before the next experiment cycle. Future work should be driven by claims that survive this audit, not by adding models or thresholds to make numbers look better.
+
 ## 2026-07-20: SRD-SAILOR Framing Consolidated In Current Documents
 
 After reviewing the SRD transition taxonomy, SAILOR transition taxonomy, radius-sensitivity checks, and SRD-SAILOR domain-gap analysis, we fixed the current conceptual framing across the project documents.
