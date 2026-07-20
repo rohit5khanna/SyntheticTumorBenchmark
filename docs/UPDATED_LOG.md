@@ -71,6 +71,8 @@ Follow-up fix: the script now uses existing manifest feature columns directly wh
 
 Bridge-analysis implementation: `scripts/analyze_operating_regime_bridge.py` was added to connect the LOCF operating-range samples with optional model per-sample outputs. The goal is to stratify cases by observed relative absolute change, then report LOCF performance and model gaps within low/medium/high change strata. These bins are descriptive and should not be treated as learned clinical categories or tuned decision rules.
 
+Next-step implementation: `scripts/analyze_persistence_breakdown_predictability.py` was added to test whether high observed change burden can be anticipated from pre-target/origin-known features. The script defines high-change labels using the training split only, blocks target-derived predictors, and reports validation/test performance for simple logistic and shallow-tree classifiers. This is an audit of whether the operating regime is predictable before seeing the target scan, not a deployment gate.
+
 ## 2026-07-11: Workspace Consolidation And Research Restart
 
 After a one-week pause, the project was restarted with two priorities:
