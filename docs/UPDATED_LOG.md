@@ -4880,3 +4880,16 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
 - Mixed growth/loss was not robustly predictable: logistic validation looked useful, but test performance dropped to moderate/weak levels, and the shallow tree performed poorly. This suggests mixed growth/loss may be a real transition-complexity state that is not cleanly anticipated from simple origin-known scalar features alone.
 - High change rate looked strongest, but this result has an important definitional-coupling caveat: the label uses change divided by `delta_days`, and `log_delta_days` is in the predictor set. This is not future leakage, but it can mechanically inflate predictability. The next required ablation is to rerun the audit without interval features and compare against a time-only model.
 - Interpretation: SAILOR transition states are not equally forecast-origin predictable. Distant-growth risk appears moderately predictable from simple origin features; high-burden/LOCF-breakdown signals are more recall-oriented than precise; mixed growth/loss remains difficult. The right next move is a feature-group ablation, not a stronger claim.
+
+## 2026-07-20 - Forecast-Origin Feature-Ablation Tooling Added
+
+- Added `scripts/run_forecast_origin_feature_ablation.py` to rerun the forecast-origin transition-state predictability audit across predefined feature groups.
+- Feature groups currently include:
+  - `full_origin`: interval, input volume, treatment, and previous growth/loss history;
+  - `no_interval`: input volume, treatment, and previous growth/loss history without interval/span features;
+  - `time_only`: interval/span features only;
+  - `history_only`: input volume and previous growth/loss history only;
+  - `treatment_only`: current treatment and treatment-change indicators only.
+- Motivation: the initial SAILOR predictability result showed strong high-change-rate performance, but that label is partly defined by change per day while `delta_days` is a predictor. The ablation is required to distinguish genuine forecast-origin signal from definitional coupling.
+- Outputs include combined feature-set summaries, patient-bootstrap summaries, feature weights, prevalence tables, and deltas versus the full-origin feature set.
+- Interpretation standard: if a transition-state signal survives in `no_interval` or `history_only`, it is more likely to reflect input/history information. If it appears only in `time_only`, it should be described as interval-linked rather than biological or imaging-context predictability.
