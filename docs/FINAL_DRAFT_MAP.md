@@ -231,9 +231,10 @@ For each transition, quantify:
 - The script blocks target-derived variables such as target volume, future growth/loss, LOCF Dice, transition type, target treatment, and spatial outcome fractions from being used as predictors.
 - Outputs include prevalence, logistic/tree summaries, feature weights, shallow tree rules, patient-bootstrap uncertainty, predictions, and a short report.
 - `scripts/run_forecast_origin_feature_ablation.py` has been added to compare full-origin, no-interval, time-only, history-only, and treatment-only predictors under the same transition labels and splits.
+- `scripts/analyze_forecast_origin_confounding.py` has been added to audit patient concentration, treatment/treatment-change association, and leave-one-patient-out stability for the same transition-state labels.
 
 #### Missing
-- Run the feature-ablation audit on SAILOR, then optionally SRD.
+- Run the confounding audit on SAILOR and use it to decide which forecast-origin signals are credible enough to mention centrally.
 - Treat this as risk-screening evidence, not as a deployment gate unless precision/recall and patient-bootstrap stability are strong.
 - Compare whether SAILOR transition states are less predictable from simple origin-known features than SRD states.
 - Decide whether forecast-origin predictability should become a central result or only a cautionary analysis before ranking/localization.

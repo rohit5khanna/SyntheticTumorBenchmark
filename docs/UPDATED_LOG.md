@@ -4904,3 +4904,17 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
 - `mixed_growth_loss` remains difficult. Validation looked moderately predictable with full/no-interval/history features, but test ROC-AUC was only around `0.57-0.60`. This supports the interpretation that mixed growth/loss is a real transition-complexity state not reliably anticipated from simple forecast-origin scalar features.
 - Main interpretation: forecast-origin scalar features contain meaningful but limited transition-state signal. Distant-growth risk is the strongest candidate for a genuine pre-target risk score. High-change-rate and LOCF-breakdown signals are likely entangled with interval, treatment, patient allocation, and sparse positives. Mixed growth/loss should remain a hard-state descriptor rather than a predictable regime under the current feature set.
 - Required next check: audit patient/treatment confounding for the strong `high_change_rate`, `locf_breakdown`, and `distant_growth_present` signals before treating them as generalizable origin-state predictors.
+
+## 2026-07-25 - Forecast-Origin Confounding Audit Tooling Added
+
+- Added `scripts/analyze_forecast_origin_confounding.py` to stress-test whether forecast-origin transition predictability is driven by patient concentration, treatment/treatment-change structure, or weak patient-held-out generalization.
+- The script consumes the labeled samples produced by the forecast-origin predictability/feature-ablation pipeline and does not recompute images or train neural models.
+- Outputs include:
+  - patient concentration summaries for each transition label and split;
+  - per-patient target prevalence tables;
+  - treatment and treatment-change distribution by split;
+  - target prevalence gaps by treatment/current treatment-change indicators;
+  - leave-one-patient-out logistic summaries for the same feature sets used in the ablation;
+  - per-held-out-patient prediction summaries and a markdown report.
+- Purpose: guard against overinterpreting high `high_change_rate`, `locf_breakdown`, or `distant_growth_present` scores if they are mostly caused by a few patients, treatment allocation, or split-specific structure.
+- Interpretation rule: a forecast-origin signal should not become central unless it survives patient-spread checks, treatment-confounding checks, and preferably leave-one-patient-out prediction better than chance.
