@@ -62,6 +62,7 @@ class RiskConditionedForecastDataset:
         risk_columns: List[str],
         risk_fill_value: float = 0.5,
         cache_arrays: bool = True,
+        spatial_stride: int = 1,
     ) -> None:
         self.base = _TorchForecastDataset(
             dataset_root=dataset_root,
@@ -73,6 +74,7 @@ class RiskConditionedForecastDataset:
         self.risk_lookup = risk_lookup
         self.risk_columns = risk_columns
         self.risk_fill_value = float(risk_fill_value)
+        self.spatial_stride = max(1, int(spatial_stride))
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -81,6 +83,9 @@ class RiskConditionedForecastDataset:
         import torch
 
         x, y, _ = self.base[idx]
+        if self.spatial_stride > 1:
+            x = x[:, :: self.spatial_stride, :: self.spatial_stride, :: self.spatial_stride].contiguous()
+            y = y[:, :: self.spatial_stride, :: self.spatial_stride, :: self.spatial_stride].contiguous()
         sample = self.samples[idx]
         vals = self.risk_lookup.get(sample_key(sample))
         if vals is None:
@@ -151,6 +156,10 @@ def run_risk_conditioned_model(
     seed: int,
     device: str,
     risk_fill_value: float,
+    spatial_stride: int,
+    max_train_samples: int,
+    max_val_samples: int,
+    max_eval_samples_per_split: int,
 ) -> dict:
     try:
         import torch
@@ -174,8 +183,30 @@ def run_risk_conditioned_model(
 
     train_samples = build_samples_from_manifest(manifest, train_split)
     val_samples = build_samples_from_manifest(manifest, val_split)
-    train_ds = RiskConditionedForecastDataset(dataset_root, train_samples, input_mode, risk_lookup, risk_columns, risk_fill_value)
-    val_ds = RiskConditionedForecastDataset(dataset_root, val_samples, input_mode, risk_lookup, risk_columns, risk_fill_value)
+    n_train_samples_full = len(train_samples)
+    n_val_samples_full = len(val_samples)
+    if max_train_samples and max_train_samples > 0:
+        train_samples = train_samples[:max_train_samples]
+    if max_val_samples and max_val_samples > 0:
+        val_samples = val_samples[:max_val_samples]
+    train_ds = RiskConditionedForecastDataset(
+        dataset_root,
+        train_samples,
+        input_mode,
+        risk_lookup,
+        risk_columns,
+        risk_fill_value,
+        spatial_stride=spatial_stride,
+    )
+    val_ds = RiskConditionedForecastDataset(
+        dataset_root,
+        val_samples,
+        input_mode,
+        risk_lookup,
+        risk_columns,
+        risk_fill_value,
+        spatial_stride=spatial_stride,
+    )
 
     sample_x, _, _ = train_ds[0]
     in_channels = int(sample_x.shape[0])
@@ -261,7 +292,17 @@ def run_risk_conditioned_model(
     eval_rows = []
     for split in eval_splits:
         samples = build_samples_from_manifest(manifest, split)
-        ds = RiskConditionedForecastDataset(dataset_root, samples, input_mode, risk_lookup, risk_columns, risk_fill_value)
+        if max_eval_samples_per_split and max_eval_samples_per_split > 0:
+            samples = samples[:max_eval_samples_per_split]
+        ds = RiskConditionedForecastDataset(
+            dataset_root,
+            samples,
+            input_mode,
+            risk_lookup,
+            risk_columns,
+            risk_fill_value,
+            spatial_stride=spatial_stride,
+        )
         loader = DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=(dev.type == "cuda"))
         eval_rows.extend(evaluate_model(model, samples, loader, dev, split, prefix, lookup))
 
@@ -279,11 +320,17 @@ def run_risk_conditioned_model(
         "risk_columns": risk_columns,
         "risk_fill_value": float(risk_fill_value),
         "n_train_samples": len(train_samples),
+        "n_train_samples_full": int(n_train_samples_full),
         "n_val_samples": len(val_samples),
+        "n_val_samples_full": int(n_val_samples_full),
         "epochs": int(epochs),
         "batch_size": int(batch_size),
         "learning_rate": float(learning_rate),
         "base_channels": int(base_channels),
+        "spatial_stride": int(spatial_stride),
+        "max_train_samples": int(max_train_samples),
+        "max_val_samples": int(max_val_samples),
+        "max_eval_samples_per_split": int(max_eval_samples_per_split),
         "seed": int(seed),
         "best_val_dice": float(best_val_dice),
         "checkpoint": str(best_ckpt),
@@ -317,6 +364,10 @@ def main() -> None:
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--base_channels", type=int, default=6)
     parser.add_argument("--risk_fill_value", type=float, default=0.5)
+    parser.add_argument("--spatial_stride", type=int, default=1)
+    parser.add_argument("--max_train_samples", type=int, default=0)
+    parser.add_argument("--max_val_samples", type=int, default=0)
+    parser.add_argument("--max_eval_samples_per_split", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", type=str, default="auto")
     parser.add_argument("--output_dir", type=str, required=True)
@@ -343,6 +394,10 @@ def main() -> None:
         seed=args.seed,
         device=args.device,
         risk_fill_value=args.risk_fill_value,
+        spatial_stride=args.spatial_stride,
+        max_train_samples=args.max_train_samples,
+        max_val_samples=args.max_val_samples,
+        max_eval_samples_per_split=args.max_eval_samples_per_split,
     )
     print(json.dumps(summary, indent=2))
 
