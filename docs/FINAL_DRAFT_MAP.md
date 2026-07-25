@@ -570,6 +570,8 @@ No central claim should rely on a single random realization. Each claim must be 
 | High-transition-burden risk is partly forecast-origin predictable | Leave-one-patient-out audit and repeated patient splits | Stable-moderate | Target-threshold sensitivity and calibration | Label definition and patient-count limitations may affect stability |
 | Mixed growth/loss is forecast-origin predictable | Leave-one-patient-out and repeated patient-split audits; history-only features strongest | Stable-moderate | Calibration, patient-level false-negative analysis, external validation | Could still be limited to SAILOR transition structure if promoted too broadly |
 | High-change-rate predictability reflects intrinsic tumor behavior | Strong time/treatment/no-interval signals | Rejected in this form | Reframe as interval/treatment-linked operating context | Definitional coupling with rate label and treatment structure could mislead |
+| Predicted transition risk stratifies persistence difficulty | SAILOR out-of-fold risk-stratified model-behavior analysis | Strong descriptive/methodological claim | Patient-level uncertainty and comparison with additional model outputs | Could be reduced to "hard cases are hard" unless framed as pre-target risk stratification |
+| Existing ResUNet selectively solves high-risk transitions | Risk-stratified model-vs-LOCF gaps | Rejected for current baseline | Risk-conditioned method prototype | Generic full-mask model does not exploit the risk signal enough |
 | Growth-only residual forecasting is a mature method contribution | SAILOR seeds 42/123 show small positive trends | Weak-to-moderate, not central yet | Same-resolution baselines, more seeds/splits, patient bootstrap, failure analysis | Small gains could be over-engineered or non-robust |
 | Loss/shrinkage is symmetric with growth | Residual-change experiments | Rejected for now | Treatment/registration/loss-specific analysis | Symmetric residual modeling may hurt credibility |
 | Regime-aware priors improve forecasting | Decomposition evidence and early method probes | Plausible but unproven | A clean prior-driven method with robust gains | Premature method claims could weaken the whole project |
@@ -586,6 +588,7 @@ No central claim should rely on a single random realization. Each claim must be 
 8. Curate figure/table manifest around transition components rather than model leaderboard.
 9. Decide which claims are strong enough to be central and which must remain exploratory.
 10. Repeat forecast-origin transition predictability over multiple patient splits/folds, especially for `mixed_growth_loss`, `distant_growth_present`, and `high_transition_burden`.
+11. Convert risk stratification into a concrete method design only if the method explicitly uses the risk signal; avoid presenting generic ResUNet gains as risk-aware forecasting.
 
 ## 14. Quality Bar
 

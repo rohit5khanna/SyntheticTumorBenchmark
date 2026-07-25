@@ -4962,3 +4962,18 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
 - Outputs include raw out-of-fold risk-score draws, aggregated transition risk scores, merged model-performance samples, method Dice by risk bin, model-vs-LOCF pairwise gaps by risk bin, high-versus-low risk contrasts, risk/performance correlations, and a markdown report.
 - Purpose: test whether pre-target transition-risk scores are useful as evaluation strata or conditioning signals. This moves the work from "transition states can be described/predicted" to "predicted transition risk explains where forecasting methods behave differently."
 - This is not a new neural model and should not be presented as one. It is the next data-mining bridge toward a risk-aware forecasting method.
+
+## 2026-07-25 - SAILOR Risk-Stratified Model Behavior Result
+
+- Ran the risk-stratified model-behavior analysis on SAILOR using 100 repeated patient-split out-of-fold risk scores, four forecast-origin transition-risk targets, three core feature sets, and existing LOCF/ResUNet-image+mask per-sample Dice outputs.
+- The risk-score layer covered all 136 SAILOR windows, with an average of about 38.2 out-of-fold scores per transition. The model-behavior merge used the subset with per-sample baseline outputs available from the current manifest-baseline directory: 54 model-evaluable rows across validation/test windows.
+- Predicted risk strongly stratified LOCF difficulty. High-risk bins had substantially lower LOCF Dice than low-risk bins across all major targets:
+  - `high_transition_burden`: LOCF high-minus-low Dice ranged from `-0.223` to `-0.245` across feature sets.
+  - `locf_breakdown`: high-minus-low ranged from `-0.175` to `-0.223`.
+  - `distant_growth_present`: high-minus-low ranged from `-0.155` to `-0.176`.
+  - `mixed_growth_loss`: high-minus-low ranged from `-0.138` to `-0.149`.
+- Risk/performance correlations confirmed the same pattern. Risk scores were negatively correlated with LOCF Dice for all targets and feature sets, with Pearson correlations approximately `-0.31` to `-0.47` and Spearman correlations approximately `-0.37` to `-0.49`.
+- The ResUNet-image+mask baseline did not selectively solve the high-risk cases. Its mean Dice gap over LOCF was usually small in high-risk bins (`~0.002` to `0.023`), and high-minus-low model-gap contrasts were close to zero or inconsistent across feature sets.
+- Some medium-risk bins showed larger ResUNet gains than high-risk bins, especially for high-transition-burden and LOCF-breakdown risk (`~0.020` to `0.026` mean Dice gap versus LOCF). This suggests the current ResUNet may help in moderately changed cases but does not yet address the hardest predicted transition states.
+- Main interpretation: forecast-origin risk scores are useful as evaluation strata and failure-mode descriptors. They identify when persistence is likely to struggle before the target scan is observed. However, the existing ResUNet does not provide evidence of a risk-adaptive forecasting mechanism.
+- Research implication: the next method step should not be another generic full-mask ResUNet run. A credible method contribution should explicitly use the risk signal, for example through risk-conditioned weighting, risk-specific output heads, uncertainty/triage, or a persistence-preserving correction module focused on high-risk transition components.
