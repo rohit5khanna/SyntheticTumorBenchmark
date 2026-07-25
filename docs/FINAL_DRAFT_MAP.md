@@ -565,6 +565,11 @@ No central claim should rely on a single random realization. Each claim must be 
 | Boundary proximity is a useful growth prior | Distance and delayed-hit analyses plus robust distant-growth audit | Strong but incomplete prior | Clarify non-boundary/distant growth cases | Could be oversold as sufficient when SAILOR shows threshold-robust distant growth |
 | Image/context models add signal beyond distance | Cropped SAILOR ranking and paired gains | Moderate/promising | More patient-level validation and split/seed robustness | Could be small-sample or crop-selection artifact |
 | Growth-budget estimation is a bottleneck | Ranking-Dice tradeoff, SRD budgeted policy, SAILOR conservative growth-only results | Strong methodological diagnosis | Forecast-origin budget predictors | Method may look like threshold tuning if this is not formalized |
+| Forecast-origin features can anticipate all difficult transition states | Feature ablation and confounding audit | Rejected as a broad claim | Multiple patient splits/folds for specific labels | Overstates what simple pre-target scalar features can support |
+| Distant-growth risk is moderately forecast-origin predictable | SAILOR feature ablation and leave-one-patient-out audit | Moderate/promising | Repeated patient splits; calibration and false-negative analysis | Could still be patient-composition sensitive on small validation/test splits |
+| High-transition-burden risk is partly forecast-origin predictable | Leave-one-patient-out audit; no-interval/history signals above chance | Moderate/promising | Repeated patient splits and target-threshold sensitivity | Label definition and patient-count limitations may affect stability |
+| Mixed growth/loss is forecast-origin predictable | Fixed-split result weak; leave-one-patient-out result stronger | Exploratory/conflicting | Repeated patient splits before any central claim | Could be a patient-allocation artifact if promoted too early |
+| High-change-rate predictability reflects intrinsic tumor behavior | Strong time/treatment/no-interval signals | Rejected in this form | Reframe as interval/treatment-linked operating context | Definitional coupling with rate label and treatment structure could mislead |
 | Growth-only residual forecasting is a mature method contribution | SAILOR seeds 42/123 show small positive trends | Weak-to-moderate, not central yet | Same-resolution baselines, more seeds/splits, patient bootstrap, failure analysis | Small gains could be over-engineered or non-robust |
 | Loss/shrinkage is symmetric with growth | Residual-change experiments | Rejected for now | Treatment/registration/loss-specific analysis | Symmetric residual modeling may hurt credibility |
 | Regime-aware priors improve forecasting | Decomposition evidence and early method probes | Plausible but unproven | A clean prior-driven method with robust gains | Premature method claims could weaken the whole project |
@@ -580,6 +585,7 @@ No central claim should rely on a single random realization. Each claim must be 
 7. Decide whether seed 777 or repeated patient split is the next strongest robustness step.
 8. Curate figure/table manifest around transition components rather than model leaderboard.
 9. Decide which claims are strong enough to be central and which must remain exploratory.
+10. Repeat forecast-origin transition predictability over multiple patient splits/folds, especially for `mixed_growth_loss`, `distant_growth_present`, and `high_transition_burden`.
 
 ## 14. Quality Bar
 
