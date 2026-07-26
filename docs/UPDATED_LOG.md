@@ -5021,3 +5021,26 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
   - budgeted perfect-growth oracle: add only a small budget of true growth voxels, expressed as a fraction of the input tumor volume.
 - This deliberately avoids the trivial full growth+loss oracle as the main result because that would always reproduce the target mask and give Dice `1.0`.
 - Interpretation rule: if the constrained oracle has little headroom over LOCF, a LOCF-correction method is not worth pursuing. If the headroom is concentrated in growth-only corrections but not loss/shrinkage, the next prototype should focus on conservative growth addition rather than symmetric mask editing.
+
+## 2026-07-25 - SAILOR LOCF-Correction Oracle Result
+
+- Ran the LOCF-correction oracle on the current SAILOR validation/test forecast windows: 54 windows from 9 patients, input length `3`, horizon `1`.
+- Overall LOCF mean Dice was `0.630`.
+- Constrained correction ceilings showed substantial non-trivial headroom:
+  - growth-only oracle Dice `0.869`, mean gap over LOCF `+0.239`;
+  - loss-only oracle Dice `0.750`, mean gap over LOCF `+0.120`;
+  - directional oracle Dice `0.894`, mean gap over LOCF `+0.265`.
+- The direction split is important:
+  - Net-growth windows (`n=30`) had LOCF Dice `0.602`; growth-only oracle reached `0.926` (`+0.324`), while loss-only oracle only reached `0.666` (`+0.064`).
+  - Net-shrinkage windows (`n=24`) had LOCF Dice `0.665`; loss-only oracle reached `0.855` (`+0.190`), while growth-only oracle reached `0.797` (`+0.132`).
+- Interpretation: the next method should be asymmetric. Growth-dominant cases need growth addition outside the current tumor; shrinkage-dominant cases need a separate and more cautious loss/removal mechanism. A symmetric residual-edit model is likely to mix two different problems.
+- Budgeted perfect-growth oracle also clarified the bottleneck. Small growth budgets provide only modest Dice gains:
+  - 0.5% of input volume: Dice `0.633`, gap `+0.003`;
+  - 1%: Dice `0.636`, gap `+0.006`;
+  - 2%: Dice `0.642`, gap `+0.012`;
+  - 5%: Dice `0.660`, gap `+0.031`;
+  - 10%: Dice `0.688`, gap `+0.058`;
+  - 20%: Dice `0.731`, gap `+0.101`;
+  - true-growth-volume oracle: Dice `0.869`, gap `+0.239`.
+- This means that a conservative tiny-growth policy cannot capture most of the available headroom on SAILOR. The bottleneck is not only locating growth; it is also estimating a sufficiently large but safe growth budget.
+- Research implication: the correction-model path remains promising because oracle headroom is large, but a successful method must address budget calibration. A model that adds only very small high-confidence patches may be safe but will leave most of the attainable improvement unused.

@@ -565,6 +565,8 @@ No central claim should rely on a single random realization. Each claim must be 
 | Boundary proximity is a useful growth prior | Distance and delayed-hit analyses plus robust distant-growth audit | Strong but incomplete prior | Clarify non-boundary/distant growth cases | Could be oversold as sufficient when SAILOR shows threshold-robust distant growth |
 | Image/context models add signal beyond distance | Cropped SAILOR ranking and paired gains | Moderate/promising | More patient-level validation and split/seed robustness | Could be small-sample or crop-selection artifact |
 | Growth-budget estimation is a bottleneck | Ranking-Dice tradeoff, SRD budgeted policy, SAILOR conservative growth-only results | Strong methodological diagnosis | Forecast-origin budget predictors | Method may look like threshold tuning if this is not formalized |
+| LOCF-anchored correction has meaningful oracle headroom | SAILOR constrained correction oracle: growth-only +0.239, loss-only +0.120, directional +0.265 Dice over LOCF | Strong method-design premise | Patient bootstrap/split sensitivity and same analysis on SRD | Oracle headroom does not guarantee learnable/corresponding model performance |
+| Tiny conservative growth additions can recover most correction headroom | SAILOR budgeted perfect-growth oracle | Rejected | None; reframe as budget-calibration problem | Small budgets are safe but leave most available improvement unused |
 | Forecast-origin features can anticipate all difficult transition states | Feature ablation, confounding audit, repeated patient splits | Rejected as a broad claim | Label-specific calibration and false-negative analysis | Overstates what simple pre-target scalar features can support |
 | Distant-growth risk is moderately forecast-origin predictable | SAILOR feature ablation, leave-one-patient-out audit, repeated patient splits | Promising but split-sensitive | Calibration and false-negative analysis | Could still be patient-composition sensitive on small validation/test splits |
 | High-transition-burden risk is partly forecast-origin predictable | Leave-one-patient-out audit and repeated patient splits | Stable-moderate | Target-threshold sensitivity and calibration | Label definition and patient-count limitations may affect stability |
@@ -592,6 +594,7 @@ No central claim should rely on a single random realization. Each claim must be 
 11. Convert risk stratification into a concrete method design only if the method explicitly uses the risk signal; avoid presenting generic ResUNet gains as risk-aware forecasting.
 12. Treat scalar risk-channel conditioning as a negative baseline. Any next method must change the forecasting mechanism, not merely append risk scores to a full-mask predictor.
 13. Design the next prototype around persistence-preserving updates: start from LOCF, predict a constrained correction field, and separately handle growth versus loss/shrinkage rather than assuming they are symmetric.
+14. Use the LOCF-correction oracle as a gate before training: correction has enough headroom, but the learnable problem is budget calibration plus spatial localization, not merely high-confidence tiny growth addition.
 
 ## 14. Quality Bar
 
