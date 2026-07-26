@@ -5375,3 +5375,35 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
   - stop tuning this conservative growth-only policy as if it were the main method;
   - keep it as a bottleneck experiment demonstrating why persistence-preserving correction needs separate direction, budget, and spatial-localization components;
   - next work should return to the stronger data-mining claims: LOCF operating range, transition taxonomy, growth/loss decomposition, forecast-origin predictability, and domain shift between SRD and SAILOR.
+
+## 2026-07-26 - Research Backbone Summary Tooling Added
+
+- Added `scripts/build_research_backbone_summary.py`.
+- Purpose:
+  - consolidate the current project into a claim-level research spine;
+  - prevent the work from drifting back into model-leaderboard mode;
+  - identify which claims are central, supporting, diagnostic, rejected, or missing evidence.
+- The script reads existing output folders when available:
+  - transition evidence package;
+  - LOCF operating-range analysis;
+  - forecast-origin predictability analysis;
+  - forecast-origin patient-split stability analysis;
+  - forecast-origin budget predictability analysis;
+  - learned growth-field failure diagnosis;
+  - conservative-policy seed robustness audit.
+- It writes:
+  - `research_backbone_claim_map.csv`;
+  - `research_backbone_priority_table.csv`;
+  - optional `research_backbone_missing_inputs.csv`;
+  - `research_backbone_summary.md`;
+  - `research_backbone_summary.json`.
+- The generated claim map separates:
+  - central claims, such as transition-aware short-horizon evaluation and SRD/SAILOR complementary roles;
+  - supporting claims, such as forecast-origin predictability;
+  - diagnostic claims, such as budget/spatial-localization bottlenecks;
+  - rejected/not-central method claims, such as robust conservative-policy improvement over LOCF.
+- Local smoke test passed.
+- Intended next use:
+  - run in Colab against the current Drive output folders;
+  - inspect the claim map before deciding the next experiment;
+  - use the priority table to guide the next writing/research pass.

@@ -509,9 +509,11 @@ No central claim should rely on a single random realization. Each claim must be 
 ### Current Status
 - Many raw CSVs and figures exist from earlier work.
 - Not yet organized into a coherent evidence set.
+- `scripts/build_research_backbone_summary.py` has been added to consolidate transition evidence, LOCF operating range, forecast-origin predictability, budget/spatial bottlenecks, and conservative-policy robustness into one claim-level map.
 
 ### Missing
-- Final curated figure/table manifest.
+- Run the research-backbone summary on the current Drive outputs.
+- Use the resulting claim map to select the final curated figure/table manifest.
 - Consistent naming and captions.
 - Avoid redundant or weak figures.
 
@@ -605,6 +607,7 @@ No central claim should rely on a single random realization. Each claim must be 
 17. Diagnose why the current growth-only learned field fails after top-k conversion: budget mismatch, direction leakage into shrinkage, fragmentation, distance to true growth, and Dice gain/cost.
 18. Treat the conservative gate/scale policy ablation as a diagnostic result, not a finished method. The seed-42 and seed-123 runs support the over-editing/shrinkage-leakage diagnosis, but held-out patient-bootstrap evidence does not support robust improvement over LOCF.
 19. Combine forecast-origin budget calibration with stronger learned spatial score fields only after the failure diagnosis is clear. Candidate spatial sources: cropped growth-ranking score, uncertainty-aware growth-front CNN, or a persistence-preserving correction network with connected/boundary constraints.
+20. Run `scripts/build_research_backbone_summary.py` to consolidate the current evidence into central/supporting/diagnostic/rejected claims before adding any further experiments.
 
 ## 14. Quality Bar
 
