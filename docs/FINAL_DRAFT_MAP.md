@@ -601,7 +601,8 @@ No central claim should rely on a single random realization. Each claim must be 
 15. Use repeated patient-split budget stability as the calibration gate. The signal survives patient reallocation and is strongest for history-only ridge, so the next test should remove oracle spatial localization.
 16. Treat distance-to-current-mask as a rejected sufficient spatial prior. It is still useful as a diagnostic baseline, but it does not reliably convert predicted budgets into better masks.
 17. Diagnose why the current growth-only learned field fails after top-k conversion: budget mismatch, direction leakage into shrinkage, fragmentation, distance to true growth, and Dice gain/cost.
-18. Combine forecast-origin budget calibration with stronger learned spatial score fields only after the failure diagnosis is clear. Candidate spatial sources: cropped growth-ranking score, uncertainty-aware growth-front CNN, or a persistence-preserving correction network with connected/boundary constraints.
+18. Run a conservative gate/scale policy ablation before designing a new model. Select gate and budget scale on validation only, then evaluate on test, to check whether the current failure is mostly over-editing and shrinkage leakage.
+19. Combine forecast-origin budget calibration with stronger learned spatial score fields only after the failure diagnosis is clear. Candidate spatial sources: cropped growth-ranking score, uncertainty-aware growth-front CNN, or a persistence-preserving correction network with connected/boundary constraints.
 
 ## 14. Quality Bar
 

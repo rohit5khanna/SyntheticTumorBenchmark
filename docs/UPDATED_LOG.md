@@ -5219,3 +5219,20 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
   - Dice gain/cost ratio, where true-positive added voxels increase numerator but all added voxels increase denominator.
 - Purpose: distinguish whether the failure is mainly budget mismatch, direction leakage into shrinkage cases, spatial localization error, fragmented edits, or Dice arithmetic.
 - This is a diagnosis step, not a new model. It should determine whether the next model should focus on budget calibration, direction gating, spatial field learning, connected/boundary-constrained edits, or a different objective than hard Dice.
+
+## 2026-07-26 - Conservative Growth-Policy Ablation Tooling Added
+
+- Added `scripts/evaluate_conservative_growth_policy.py`.
+- This script tests whether the learned growth-field failure is mainly caused by over-editing and shrinkage leakage.
+- The policy keeps the same ingredients as the failed learned-field conversion:
+  - forecast-origin direction probability;
+  - forecast-origin predicted growth budget;
+  - trained growth-only ResUNet probability field;
+  - LOCF as the base mask.
+- Instead of always adding the full predicted budget, it sweeps:
+  - net-growth gate thresholds, e.g. `0.5,0.6,0.7,0.8,0.9`;
+  - budget scales, e.g. `0,0.1,0.25,0.5,0.75,1.0`.
+- The script selects the best gate/scale only on the validation split, then reports the selected policy on validation and test.
+- Reported diagnostics include mean Dice, gap versus LOCF, win rate versus LOCF, gate-open rate, edit-on-growth rate, edit-on-shrinkage rate, added growth volume, precision, and recall.
+- Purpose: determine whether a conservative, validation-selected persistence-preserving policy can avoid the main failure mode without pretending that the current growth field is already a complete method.
+- Interpretation rule: if the selected policy collapses to zero edits, LOCF is safer under this field and split. If conservative gating helps net-growth without hurting shrinkage, the next method should become explicitly gate-calibrated. If no gate/scale helps, the problem is deeper than over-editing and likely requires a stronger spatial field or different training target.
