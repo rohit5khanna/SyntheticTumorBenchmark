@@ -5236,3 +5236,35 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
 - Reported diagnostics include mean Dice, gap versus LOCF, win rate versus LOCF, gate-open rate, edit-on-growth rate, edit-on-shrinkage rate, added growth volume, precision, and recall.
 - Purpose: determine whether a conservative, validation-selected persistence-preserving policy can avoid the main failure mode without pretending that the current growth field is already a complete method.
 - Interpretation rule: if the selected policy collapses to zero edits, LOCF is safer under this field and split. If conservative gating helps net-growth without hurting shrinkage, the next method should become explicitly gate-calibrated. If no gate/scale helps, the problem is deeper than over-editing and likely requires a stronger spatial field or different training target.
+
+## 2026-07-26 - SAILOR Conservative Growth-Policy Ablation Result
+
+- Ran the conservative gate/scale ablation on the SAILOR length-3, horizon-1 patient split `v2`, using the seed-42 growth-only ResUNet checkpoint.
+- The validation-selected policy was:
+  - gate threshold: `0.5`;
+  - budget scale: `0.1`;
+  - forecast-origin budget model: `history_only` + `ridge_log`;
+  - spatial field: growth-only ResUNet probability;
+  - base mask: LOCF.
+- This means the best validation policy added only `10%` of the predicted growth budget when the forecast-origin direction model predicted net growth with probability at least `0.5`.
+- Overall performance:
+  - Validation LOCF Dice: `0.618`;
+  - Validation conservative policy Dice: `0.623`, gap `+0.005`;
+  - Validation win rate versus LOCF: `0.536`;
+  - Test LOCF Dice: `0.641`;
+  - Test conservative policy Dice: `0.643`, gap `+0.002`;
+  - Test win rate versus LOCF: `0.577`.
+- By direction:
+  - Validation net-growth gap: `+0.011`;
+  - Test net-growth gap: `+0.007`;
+  - Validation net-shrinkage gap: `-0.001`;
+  - Test net-shrinkage gap: `-0.006`.
+- Interpretation: this does not establish a strong method result, but it is a useful sign reversal. The unrestricted predicted-budget learned-field policy hurt Dice substantially, while a conservative validation-selected edit policy produced small positive validation/test gains.
+- Main diagnosis supported: the previous failure was partly caused by over-editing. The learned growth field contains useful signal, but the operational edit rule must be conservative and probably direction-calibrated.
+- Caution:
+  - gains are small;
+  - evaluation is at `spatial_stride=2`;
+  - result uses one growth-only checkpoint;
+  - the policy still edits some shrinkage cases;
+  - gate thresholds above `0.7` opened no edits, suggesting direction probabilities are not well calibrated.
+- Next robustness step: repeat the same conservative gate/scale ablation with the seed-123 growth-only checkpoint. If the selected conservative pattern survives, this becomes a credible signal. If it does not, the result remains exploratory.
