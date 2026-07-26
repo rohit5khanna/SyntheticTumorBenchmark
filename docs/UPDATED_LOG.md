@@ -5086,3 +5086,32 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
 - The script reports repeated-split distributions for predicted-direction budget-oracle Dice, predicted-direction gap versus LOCF, growth/loss budget errors, budget-rank correlations, and direction-prediction accuracy.
 - Runtime controls were added for `budget_models`, `rf_estimators`, `n_repeats`, and `train_fraction`.
 - Purpose: determine whether the apparent budget-calibration signal survives patient reallocation, and whether history/no-interval features remain competitive against time/treatment-only shortcuts.
+
+## 2026-07-26 - SAILOR Forecast-Origin Budget Split-Stability Result
+
+- Ran the repeated patient-split budget stability audit on the SAILOR length-3, horizon-1 manifest using 100 random patient-level train/test splits, train fraction `0.70`, and 23 patients / 136 windows.
+- The key result survived patient reallocation: forecast-origin budget calibration remains useful under oracle-perfect spatial localization.
+- The strongest repeated-split configuration was `history_only` + ridge log-volume budget:
+  - mean LOCF Dice across repeated held-out splits: `0.630`;
+  - mean predicted-direction budget-oracle Dice: `0.771`;
+  - mean predicted-direction gap versus LOCF: `+0.142`;
+  - q25 gap: `+0.125`;
+  - median gap: `+0.143`;
+  - positive-gap fraction: `1.00`;
+  - gap greater than `0.10` fraction: `0.98`;
+  - growth-budget Spearman mean: `0.551`;
+  - loss-budget Spearman mean: `0.840`.
+- Other biologically/history-aligned feature sets were close:
+  - `history_only` random forest: mean gap `+0.137`, q25 `+0.118`;
+  - `no_interval` ridge: mean gap `+0.134`, q25 `+0.117`;
+  - `full_origin` ridge: mean gap `+0.134`, q25 `+0.117`.
+- Time-only and treatment-only feature sets were no longer dominant under repeated patient splits. They remained positive but weaker:
+  - time-only ridge: mean gap `+0.121`, q25 `+0.101`;
+  - treatment-only random forest/ridge: mean gap `+0.119`, q25 about `+0.098`.
+- Direction prediction was only moderate:
+  - time-only direction accuracy mean `0.639`;
+  - history-only `0.627`;
+  - no-interval `0.616`;
+  - full-origin `0.615`.
+- Interpretation: this strengthens the budget-calibration premise considerably. The strongest repeated-split result comes from history-only descriptors, not only timing/treatment shortcuts. The result should still be framed as a calibration feasibility result because Dice translation assumes oracle spatial localization.
+- Research implication: the next genuine method test should combine forecast-origin budget calibration with non-oracle spatial ranking/localization. The right question is now whether a real spatial score field, such as distance-to-current-mask or model-predicted growth probability, can use the predicted budget to produce actual masks that improve over LOCF.
