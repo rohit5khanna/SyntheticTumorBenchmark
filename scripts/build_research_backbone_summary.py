@@ -93,13 +93,18 @@ def add_claim(
 
 
 def transition_fraction(transitions: pd.DataFrame, dataset: str, transition_type: str) -> float:
+    if transitions.empty:
+        return float("nan")
+    if {"dataset", "transition_type", "fraction"} - set(transitions.columns):
+        return float("nan")
+    row = transitions[
+        transitions["dataset"].astype(str).eq(str(dataset))
+        & transitions["transition_type"].astype(str).eq(str(transition_type))
+    ]
+    if row.empty:
+        return 0.0
     return float(
-        value_where(
-            transitions,
-            {"dataset": dataset, "transition_type": transition_type},
-            "fraction",
-            default=np.nan,
-        )
+        row.iloc[0]["fraction"]
     )
 
 

@@ -5407,3 +5407,38 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
   - run in Colab against the current Drive output folders;
   - inspect the claim map before deciding the next experiment;
   - use the priority table to guide the next writing/research pass.
+
+## 2026-07-26 - Research Backbone Summary Result
+
+- Ran `scripts/build_research_backbone_summary.py` against the current Drive outputs.
+- Output directory:
+  - `research_backbone_summary_v1`.
+- The run completed with:
+  - `8` claim rows;
+  - `0` missing input folders.
+- Priority table:
+  1. core evidence spine: finalize transition evidence package plus LOCF operating-range definition;
+  2. forecast-origin predictability: curate which transition states are predictable, weak, or rejected under patient-split stability;
+  3. method probes: use growth-field/conservative-policy results as bottleneck evidence, not as method wins;
+  4. paper/research discipline: remove or demote rejected/missing/diagnostic-only claims from the central narrative.
+- Central supported claims:
+  - short-horizon tumor forecasting should be analyzed as a transition problem, not only a model leaderboard;
+  - SRD and SAILOR play complementary roles: SRD isolates controlled regimes, while SAILOR exposes real transition complexity;
+  - the strongest contribution is the transition-aware evaluation framework;
+  - LOCF has an operating range governed by calendar interval and observed transition/change burden.
+- Supporting claim:
+  - some difficult transition states are partially predictable from forecast-origin features, but not all of them.
+- Diagnostic claims:
+  - correction-budget estimation is a bottleneck before spatial growth-field design;
+  - a learned growth-probability field can be spatially informative but still fail as a Dice-safe mask update.
+- Rejected/not-central claim:
+  - the current conservative learned-field prototype robustly beats LOCF.
+- Interpretation:
+  - the project now has a cleaner evidence spine than the earlier draft;
+  - the most promising contribution is data-mining/evaluation oriented, not a new forecasting model yet;
+  - the method probes are still valuable because they show why naive correction fails, but they should not carry the paper.
+- Small reporting fix:
+  - updated the backbone summary script so an absent transition category is reported as `0%` rather than `NA` in the claim anchor.
+- Next action:
+  - rerun the research-backbone summary once with the updated script;
+  - then curate the final main evidence package around the central claims.
