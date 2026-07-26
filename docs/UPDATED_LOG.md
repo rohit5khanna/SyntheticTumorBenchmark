@@ -5115,3 +5115,18 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
   - full-origin `0.615`.
 - Interpretation: this strengthens the budget-calibration premise considerably. The strongest repeated-split result comes from history-only descriptors, not only timing/treatment shortcuts. The result should still be framed as a calibration feasibility result because Dice translation assumes oracle spatial localization.
 - Research implication: the next genuine method test should combine forecast-origin budget calibration with non-oracle spatial ranking/localization. The right question is now whether a real spatial score field, such as distance-to-current-mask or model-predicted growth probability, can use the predicted budget to produce actual masks that improve over LOCF.
+
+## 2026-07-26 - Budgeted Distance Forecast Tooling Added
+
+- Added `scripts/evaluate_budgeted_distance_forecast.py` to remove the oracle spatial-localization assumption from the budget-calibration result.
+- The script trains forecast-origin budget/direction models on the training split, predicts growth/loss budgets on validation/test, and then produces actual forecast masks by applying distance-based top-k edits to the LOCF mask.
+- Default configuration uses the strongest repeated-split calibration signal: `history_only` features with `ridge_log` budget prediction.
+- Evaluated policies include:
+  - `locf`;
+  - predicted growth budget + distance-based outside growth addition;
+  - predicted direction with growth-only conservative correction;
+  - predicted direction with growth addition or boundary-loss removal;
+  - true growth budget + distance, to separate budget error from spatial-prior error;
+  - true direction/true budget + distance or boundary loss, as a distance-prior ceiling.
+- Purpose: test whether budget calibration translates into actual mask forecasting when spatial localization is performed by a real, simple spatial prior instead of by an oracle.
+- Interpretation rule: if predicted-budget distance policies fail while true-budget distance policies also fail, the bottleneck is distance-based spatial localization. If true-budget distance helps but predicted-budget distance fails, budget prediction is still too inaccurate for actual masks. If predicted-budget distance helps, we have a clean lightweight LOCF-correction method candidate.
