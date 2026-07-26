@@ -206,12 +206,13 @@ For each transition, quantify:
 - Patient bootstrap used for selected SAILOR method results.
 - Seed repeat run for growth-only model exists.
 - Patient-bootstrap tooling has been added for the conservative persistence-breakdown predictability audit.
+- Conservative-policy seed-robustness tooling has been added to aggregate seed-42/seed-123 selected policies and resample patients rather than transition rows.
 - Transition-label robustness has been audited across threshold settings for the SRD-SAILOR comparison.
 - A compact transition artifact exporter now keeps the main evidence package lean while preserving the full audit trail.
 
 #### Missing
 - Repeated patient split analysis.
-- Multi-seed aggregation tables.
+- Multi-seed aggregation tables from the conservative-policy robustness audit.
 - Synthetic generation repeat analysis.
 - A formal rule that no claim is made from fewer than a minimum number of patients unless marked exploratory.
 
@@ -590,7 +591,7 @@ No central claim should rely on a single random realization. Each claim must be 
 3. Build a same-resolution SAILOR comparison plan so direct ResUNet, residual-change, growth-only, and LOCF are not compared unfairly.
 4. Formalize the budget-estimation problem using only forecast-origin features.
 5. Analyze loss spatially: boundary versus core, treatment, interval, and possible registration/segmentation ambiguity.
-6. Aggregate growth-only/conservative-policy seeds 42 and 123 into one table, but do not elevate it to a main method claim yet. The key finding so far is stable validation selection with unstable held-out test improvement.
+6. Run `scripts/analyze_conservative_policy_seed_robustness.py` on seed-42 and seed-123 conservative-policy outputs. Do not elevate the prototype to a main method claim unless patient-level bootstrap supports it. The key finding so far is stable validation selection with unstable held-out test improvement.
 7. Decide whether seed 777 or repeated patient split is the next strongest robustness step.
 8. Curate figure/table manifest around transition components rather than model leaderboard.
 9. Decide which claims are strong enough to be central and which must remain exploratory.

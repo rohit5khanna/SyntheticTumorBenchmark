@@ -5310,3 +5310,31 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
 - Research implication:
   - the next credible step is not another hand-tuned policy variant;
   - we need an aggregate seed-level summary, patient-level uncertainty, and a clearer decision on whether the method contribution should be pursued now or whether the main contribution should remain transition taxonomy, LOCF operating range, and bottleneck analysis.
+
+## 2026-07-26 - Conservative Policy Seed-Robustness Audit Tooling Added
+
+- Added `scripts/analyze_conservative_policy_seed_robustness.py`.
+- The script reads existing conservative-policy output directories and does not rerun models.
+- Inputs:
+  - comma-separated policy directories, e.g. `s42=.../sailor_conservative_growth_policy_v1,s123=.../sailor_conservative_growth_policy_s123_v1`;
+  - selected-policy CSVs from each run;
+  - validation sweep CSVs from each run;
+  - run-summary JSON files from each run.
+- Outputs:
+  - seed-level selected-policy summary;
+  - cross-seed gap summary;
+  - selected samples pooled across seeds;
+  - patient-level bootstrap draws and confidence intervals;
+  - claim-status table;
+  - compact markdown report.
+- The patient bootstrap resamples patients, not individual transition rows. This is important because the SAILOR test set has only a small number of held-out patients, and transition-level bootstrapping would make the evidence look more stable than it really is.
+- The claim-status table explicitly checks:
+  - whether validation selects the same gate/scale across seeds;
+  - whether test Dice improvement over LOCF is robust across seeds;
+  - whether net-growth cases benefit more than shrinkage cases;
+  - whether the policy is safe on shrinkage cases;
+  - whether patient-level uncertainty supports a positive test improvement.
+- Local smoke test passed using synthetic toy policy outputs.
+- Intended use:
+  - this should be the decision gate before any further conservative-policy tuning;
+  - if the patient-bootstrap intervals center around zero or include substantial negative mass, the current method prototype should remain a diagnostic/bottleneck result rather than a central method contribution.
