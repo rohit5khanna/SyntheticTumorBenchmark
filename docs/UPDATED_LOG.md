@@ -5077,3 +5077,12 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
 - Caution: the best test rows being treatment-only/time-only is a warning, not a triumph. These may encode cohort timing, treatment allocation, or split-specific patient structure rather than a general biological predictor. The validation split favored history-only features, which is more aligned with the intended forecasting mechanism.
 - Interpretation: this audit strengthens the method-design premise. A LOCF-anchored correction method is not blocked by budget calibration in principle, because simple origin-side models recover a substantial part of the oracle headroom under perfect localization. But the current evidence is still split-sensitive and uses oracle spatial placement, so it should be treated as a calibration feasibility result, not a completed forecasting method.
 - Next robustness step: repeat budget predictability under patient-split resampling and report whether history-only/no-interval features remain competitive. If the signal only survives through time/treatment features, the method should be reframed as operating-context calibration rather than tumor-state calibration.
+
+## 2026-07-26 - Forecast-Origin Budget Split-Stability Tooling Added
+
+- Added `scripts/run_forecast_origin_budget_split_stability.py` to repeat the correction-budget audit across random patient-level train/test splits.
+- The script uses only manifest-derived volumes for the oracle Dice translation. This avoids repeatedly loading large 3D masks and makes the stability audit much faster and less fragile in Colab.
+- The analytic Dice calculation is possible because the oracle spatial selector is assumed to choose true growth/loss voxels first; therefore Dice can be computed from input volume, target volume, true growth volume, true loss volume, and predicted growth/loss budget.
+- The script reports repeated-split distributions for predicted-direction budget-oracle Dice, predicted-direction gap versus LOCF, growth/loss budget errors, budget-rank correlations, and direction-prediction accuracy.
+- Runtime controls were added for `budget_models`, `rf_estimators`, `n_repeats`, and `train_fraction`.
+- Purpose: determine whether the apparent budget-calibration signal survives patient reallocation, and whether history/no-interval features remain competitive against time/treatment-only shortcuts.
