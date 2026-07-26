@@ -5173,3 +5173,49 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
   - true direction/true growth budget + learned growth field.
 - Important resolution note: this evaluator should be run at the same `spatial_stride` as the growth-only checkpoint. For the current SAILOR growth-only checkpoint, that is `spatial_stride=2`; LOCF is recomputed at the same downsampled resolution for a fair internal comparison.
 - Interpretation rule: if true-budget learned-field policies help but predicted-budget learned-field policies fail, budget calibration is still too noisy for real masks. If both fail, the learned growth field is weak. If predicted-budget learned-field policies improve mainly in net-growth cases but hurt shrinkage cases, the next model should become explicitly direction-aware or loss-aware rather than symmetric.
+
+## 2026-07-26 - SAILOR Budgeted Learned Growth-Field Result
+
+- Ran the budgeted learned-growth-field evaluator on the SAILOR length-3, horizon-1 patient split `v2`.
+- Configuration:
+  - growth-only ResUNet checkpoint: `sailor_growth_only_resunet_stride2_v1`;
+  - `spatial_stride=2`;
+  - forecast-origin budget model: `history_only` + `ridge_log`;
+  - budget projection: `input_fraction`;
+  - evaluation splits: validation and test.
+- Result: the learned growth field was spatially informative, but predicted-budget conversion still hurt Dice.
+  - Test LOCF Dice at stride-2: `0.641`.
+  - Test predicted growth budget + learned field Dice: `0.592`, gap `-0.049`.
+  - Test predicted direction + learned field Dice: `0.600`, gap `-0.041`.
+  - Validation LOCF Dice at stride-2: `0.618`.
+  - Validation predicted growth budget + learned field Dice: `0.589`, gap `-0.029`.
+  - Validation predicted direction + learned field Dice: `0.591`, gap `-0.026`.
+- True-budget learned-field policies showed only limited positive headroom:
+  - Test true growth budget + learned field Dice: `0.656`, gap `+0.014`.
+  - Test true direction + learned field Dice: `0.662`, gap `+0.020`.
+  - Validation true growth budget + learned field Dice: `0.634`, gap `+0.017`.
+  - Validation true direction + learned field Dice: `0.643`, gap `+0.025`.
+- The model's probability field did separate true growth from non-growth background:
+  - Test true-growth probability mean: `0.914`;
+  - Test outside non-growth probability mean: `0.047`;
+  - Validation true-growth probability mean: `0.885`;
+  - Validation outside non-growth probability mean: `0.045`.
+- Interpretation: spatial discriminability does not automatically translate into Dice-safe mask correction. The top-ranked growth voxels can still be a poor operational edit if the budget is miscalibrated, the case is shrinkage-dominant, or the selected voxels add too much denominator relative to useful overlap.
+- Research implication: the current growth-only learned-field correction should not be promoted as a successful method. It is better understood as a diagnostic result showing that the final forecasting method must explicitly connect three components: direction/activity decision, magnitude budget, and spatial localization under a Dice-sensitive mask-editing rule.
+
+## 2026-07-26 - Budgeted Growth-Field Failure Diagnosis Tooling Added
+
+- Added `scripts/analyze_budgeted_growth_field_failure.py`.
+- The script diagnoses why a learned growth-probability field can separate true-growth voxels from background but still hurt Dice after top-k LOCF correction.
+- The audit recomputes predicted-budget and true-budget top-k edits and measures:
+  - predicted-to-true growth budget ratio;
+  - direction correctness;
+  - growth precision and recall;
+  - selected-voxel distance from the input mask;
+  - selected-voxel distance to true future growth;
+  - true-growth distance to selected voxels;
+  - fragmentation / connected components of selected growth;
+  - boundary-shell fraction of selected growth;
+  - Dice gain/cost ratio, where true-positive added voxels increase numerator but all added voxels increase denominator.
+- Purpose: distinguish whether the failure is mainly budget mismatch, direction leakage into shrinkage cases, spatial localization error, fragmented edits, or Dice arithmetic.
+- This is a diagnosis step, not a new model. It should determine whether the next model should focus on budget calibration, direction gating, spatial field learning, connected/boundary-constrained edits, or a different objective than hard Dice.
