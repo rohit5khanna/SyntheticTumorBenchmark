@@ -5338,3 +5338,40 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
 - Intended use:
   - this should be the decision gate before any further conservative-policy tuning;
   - if the patient-bootstrap intervals center around zero or include substantial negative mass, the current method prototype should remain a diagnostic/bottleneck result rather than a central method contribution.
+
+## 2026-07-26 - Conservative Policy Seed-Robustness Audit Result
+
+- Ran `scripts/analyze_conservative_policy_seed_robustness.py` on the seed-42 and seed-123 SAILOR conservative-policy outputs.
+- Output directory:
+  - `sailor_conservative_policy_seed_robustness_v1`.
+- Claim-status outcome:
+  - validation selects the same conservative operating point across seeds: `supported`;
+  - conservative learned-field correction robustly improves test Dice over LOCF: `not_supported`;
+  - conservative edits help net-growth cases more than shrinkage cases: `supported_weakly`;
+  - conservative policy is safe on shrinkage cases: `not_supported`;
+  - patient-level uncertainty supports positive test improvement: `not_supported_or_unresolved`.
+- Seed-level selected policy:
+  - seed 42 selected `gate=0.5`, `budget_scale=0.1`;
+  - seed 123 selected `gate=0.5`, `budget_scale=0.1`.
+- Overall test behavior:
+  - seed 42: LOCF Dice `0.641`, policy Dice `0.643`, mean gap `+0.0017`;
+  - seed 123: LOCF Dice `0.641`, policy Dice `0.641`, mean gap `-0.0002`.
+- Direction-specific test behavior:
+  - seed 42 net-growth gap: `+0.0070`;
+  - seed 123 net-growth gap: `+0.0023`;
+  - seed 42 net-shrinkage gap: `-0.0056`;
+  - seed 123 net-shrinkage gap: `-0.0036`.
+- Patient-bootstrap test uncertainty:
+  - seed 42 overall test gap CI: `[-0.0080, 0.0075]`, `p(gap>0)=0.629`;
+  - seed 123 overall test gap CI: `[-0.0127, 0.0065]`, `p(gap>0)=0.466`;
+  - seed 42 net-growth gap CI: `[0.0040, 0.0087]`, `p(gap>0)=1.000`, but only `3` net-growth test patients;
+  - seed 123 net-growth gap CI: `[-0.0125, 0.0072]`, `p(gap>0)=0.628`, with `3` net-growth test patients;
+  - shrinkage confidence intervals include negative regions for both seeds.
+- Interpretation:
+  - the conservative-policy prototype should not be treated as a robust forecasting method improvement;
+  - the strongest surviving signal is mechanistic/diagnostic: the learned growth field can help some net-growth cases, but shrinkage leakage and patient-level instability prevent a central method claim;
+  - this result supports the broader research story that short-horizon forecasting needs a transition-aware operating analysis before model design.
+- Decision:
+  - stop tuning this conservative growth-only policy as if it were the main method;
+  - keep it as a bottleneck experiment demonstrating why persistence-preserving correction needs separate direction, budget, and spatial-localization components;
+  - next work should return to the stronger data-mining claims: LOCF operating range, transition taxonomy, growth/loss decomposition, forecast-origin predictability, and domain shift between SRD and SAILOR.
