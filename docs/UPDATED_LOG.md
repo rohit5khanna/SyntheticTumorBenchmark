@@ -5500,3 +5500,48 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
   - rerun the main evidence package in Colab;
   - check that `n_missing_inputs` drops unless a genuinely required table is absent;
   - inspect the method diagnostic table for clean `diagnostic/status/quantitative_anchor/interpretation` fields.
+
+## 2026-07-26 - Main Evidence Package Clean Rerun Result
+
+- Reran `scripts/build_main_evidence_package.py` after the curation cleanup.
+- Output directory:
+  - `main_evidence_package_v1`.
+- Main evidence manifest:
+  - claim map: `ready`, `8` rows;
+  - transition evidence: `ready`, `8` rows;
+  - LOCF operating evidence: `ready`, `4` rows;
+  - forecast-origin predictability evidence: `ready`, `5` rows;
+  - method diagnostic evidence: `ready`, `15` rows.
+- Transition table now cleanly reports:
+  - SAILOR transitions/patients: `136 / 23`;
+  - SAILOR mean LOCF Dice: `0.639`;
+  - SRD transitions/patients: `123 / 41`;
+  - SRD mean LOCF Dice: `0.747`;
+  - mixed growth/loss: SAILOR `39.0%`, SRD `0.0%`;
+  - persistence-dominant: SAILOR `1.5%`, SRD `35.8%`;
+  - growth-dominant: SAILOR `25.7%`, SRD `50.4%`;
+  - loss-dominant: SAILOR `22.1%`, SRD `13.8%`.
+- LOCF operating table now cleanly reports:
+  - overall SAILOR LOCF context: `n=136`, `23` patients, mean Dice `0.639`;
+  - new-growth-rate quantile behavior: low-rate Dice `0.661`, high-rate Dice `0.624`;
+  - absolute-change-rate quantile behavior: low-change-rate Dice `0.643`, high-change-rate Dice `0.603`;
+  - strongest negative LOCF association includes relative absolute change with Spearman `rho=-0.958`.
+- Forecast-origin predictability table is ready as supporting evidence:
+  - distant-growth present: promising/split-sensitive;
+  - high-change-rate: stable/moderate;
+  - high-transition-burden: stable/moderate;
+  - LOCF breakdown: promising/split-sensitive;
+  - mixed growth/loss: stable/moderate.
+- Method diagnostic table now reads cleanly:
+  - predicted budget + learned field does not beat LOCF;
+  - true budget + learned field has only limited headroom;
+  - predicted/true growth-budget ratios indicate substantial budget mismatch;
+  - Dice gain/cost ratios are below `1`, indicating low-value added voxels;
+  - conservative learned-field correction is not a robust method claim under patient-bootstrap uncertainty.
+- Interpretation:
+  - the curated evidence package is now ready to serve as the writing scaffold;
+  - central writing should use the transition table, LOCF operating table/figure, and forecast-origin predictability table;
+  - method diagnostics should be used in discussion/limitations/future-method motivation rather than as a performance contribution.
+- Next action:
+  - inspect available copied figures in `main_evidence_package_v1/figures`;
+  - decide the final main-text figure/table set before drafting prose.
