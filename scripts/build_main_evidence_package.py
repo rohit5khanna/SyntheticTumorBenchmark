@@ -11,20 +11,21 @@ import numpy as np
 import pandas as pd
 
 
-def read_csv(path: Optional[Path], missing: List[str], required: bool = False) -> pd.DataFrame:
+def read_csv(path: Optional[Path], missing: List[str], required: bool = False, record_missing: bool = True) -> pd.DataFrame:
     if path is None:
         return pd.DataFrame()
     if not path.exists():
-        missing.append(str(path))
+        if record_missing:
+            missing.append(str(path))
         if required:
             raise FileNotFoundError(path)
         return pd.DataFrame()
     return pd.read_csv(path)
 
 
-def copy_if_exists(src: Optional[Path], dst: Path, missing: List[str]) -> Optional[str]:
+def copy_if_exists(src: Optional[Path], dst: Path, missing: List[str], record_missing: bool = False) -> Optional[str]:
     if src is None or not src.exists():
-        if src is not None:
+        if src is not None and record_missing:
             missing.append(str(src))
         return None
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -40,6 +41,16 @@ def fmt(value: Any, digits: int = 3) -> str:
     if not np.isfinite(x):
         return ""
     return f"{x:.{digits}f}"
+
+
+def fmt_count(value: Any) -> str:
+    try:
+        x = float(value)
+    except Exception:
+        return ""
+    if not np.isfinite(x):
+        return ""
+    return str(int(round(x)))
 
 
 def pct(value: Any, digits: int = 1) -> str:
@@ -120,7 +131,7 @@ def build_transition_artifacts(
     missing: List[str],
 ) -> pd.DataFrame:
     src_table = transition_main_dir / "main_transition_summary_table.csv" if transition_main_dir else None
-    table = read_csv(src_table, missing)
+    table = read_csv(src_table, missing, record_missing=False)
     if table.empty and transition_package_dir is not None:
         overall = read_csv(transition_package_dir / "core_tables" / "dataset_overall_comparison.csv", missing)
         transition_dist = read_csv(transition_package_dir / "core_tables" / "transition_type_distribution.csv", missing)
@@ -189,14 +200,24 @@ def build_locf_table(locf_dir: Optional[Path], output_dir: Path, missing: List[s
         rows.append(
             {
                 "evidence": "Overall LOCF operating context",
-                "value": f"n={first_value(overall, 'n_samples')}, patients={first_value(overall, 'n_patients')}, mean Dice={fmt(first_value(overall, 'mean_locf_dice'))}",
+                "value": f"n={fmt_count(first_value(overall, 'n_samples'))}, patients={fmt_count(first_value(overall, 'n_patients'))}, mean Dice={fmt(first_value(overall, 'mean_locf_dice'))}",
                 "interpretation": "Baseline persistence level before stratification.",
             }
         )
     for name, table in [("new-growth-rate quantile", growth_q), ("absolute-change-rate quantile", abs_q)]:
         if not table.empty and "mean_locf_dice" in table.columns:
-            first = table.iloc[0]
-            last = table.iloc[-1]
+            rate_cols = [
+                "mean_new_growth_rate_vox_per_day",
+                "mean_absolute_change_rate_vox_per_day",
+                "mean_relative_new_growth_rate_per_day",
+                "mean_relative_absolute_change_rate_per_day",
+            ]
+            sort_cols = [c for c in rate_cols if c in table.columns]
+            work = table.copy()
+            if sort_cols:
+                work = work.sort_values(sort_cols[0], ascending=True)
+            first = work.iloc[0]
+            last = work.iloc[-1]
             label_col = [c for c in table.columns if c.endswith("_qbin")]
             lo = first[label_col[0]] if label_col else "low"
             hi = last[label_col[0]] if label_col else "high"
@@ -229,6 +250,7 @@ def build_locf_table(locf_dir: Optional[Path], output_dir: Path, missing: List[s
             locf_dir / filename if locf_dir else None,
             output_dir / "figures" / filename,
             missing,
+            record_missing=False,
         )
         if copied:
             figure_rows.append({"figure_id": figure_id, "file": copied, "recommended_use": use})
@@ -285,12 +307,15 @@ def build_method_diagnostic_table(
     rows = []
     if not failure.empty:
         for r in failure.head(8).itertuples():
+            question = getattr(r, "question", "growth-field failure diagnostic")
+            evidence = getattr(r, "evidence", "")
+            interpretation = getattr(r, "interpretation", "Learned spatial scores alone are not enough for Dice-safe LOCF correction.")
             rows.append(
                 {
-                    "diagnostic": getattr(r, "evidence", getattr(r, "claim", "growth_field_failure")),
-                    "status": getattr(r, "status", ""),
-                    "quantitative_anchor": getattr(r, "value", getattr(r, "summary", "")),
-                    "interpretation": "Learned spatial scores alone are not enough for Dice-safe LOCF correction.",
+                    "diagnostic": question,
+                    "status": "diagnostic",
+                    "quantitative_anchor": evidence,
+                    "interpretation": interpretation,
                 }
             )
     if not policy.empty:

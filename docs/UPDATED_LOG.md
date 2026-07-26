@@ -5474,3 +5474,29 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
   4. method-probe bottlenecks as diagnostic evidence, not as a method win.
 - Local compile and smoke test passed.
 - This is now the next Colab step before writing or running any new experiment.
+
+## 2026-07-26 - Main Evidence Package First Run And Cleanup
+
+- Ran `scripts/build_main_evidence_package.py` in Colab.
+- Output directory:
+  - `main_evidence_package_v1`.
+- The first run produced all expected artifact groups:
+  - claim map: `8` rows;
+  - transition table: `8` rows;
+  - LOCF operating table: `4` rows;
+  - forecast-origin predictability table: `5` rows;
+  - method diagnostic table: `15` rows.
+- The package is conceptually useful, but the first run revealed three curation issues:
+  - optional transition-main artifact paths were counted as missing inputs even though fallback transition tables were successfully generated;
+  - LOCF quantile summaries depended on CSV row order rather than sorting by actual change-rate columns;
+  - learned growth-field failure rows appeared with `NaN` status/anchor fields because that evidence map uses `question`, `evidence`, and `interpretation` columns rather than `status` and `value`.
+- Updated `scripts/build_main_evidence_package.py` to:
+  - avoid counting optional figure/table copies as missing inputs;
+  - format sample/patient counts as integers;
+  - sort LOCF quantile tables by available change-rate columns before reporting low-to-high behavior;
+  - map growth-field failure rows into clean diagnostic rows using `question` as the diagnostic label and `evidence` as the quantitative anchor.
+- Local compile and smoke test passed after cleanup.
+- Next action:
+  - rerun the main evidence package in Colab;
+  - check that `n_missing_inputs` drops unless a genuinely required table is absent;
+  - inspect the method diagnostic table for clean `diagnostic/status/quantitative_anchor/interpretation` fields.
