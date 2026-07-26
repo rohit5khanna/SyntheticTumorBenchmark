@@ -5057,3 +5057,23 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
 - It evaluates the same forecast-origin feature sets used elsewhere: full-origin, no-interval, history-only, time-only, and treatment-only.
 - Purpose: test whether the budget-calibration bottleneck identified by the LOCF-correction oracle is forecast-origin predictable before training another correction model.
 - Interpretation rule: if predicted-budget oracle Dice remains close to LOCF, then budget calibration is currently weak and a learned correction model would likely need to learn budget internally. If it moves meaningfully toward the constrained oracle ceiling, then a persistence-preserving correction method has a more credible path.
+
+## 2026-07-26 - SAILOR Forecast-Origin Budget Predictability Result
+
+- Ran the forecast-origin budget predictability audit on the SAILOR length-3, horizon-1 patient split using 82 training windows and 54 validation/test windows.
+- The audit produced 1,350 prediction rows across five forecast-origin feature sets and five budget models.
+- Main positive signal: forecast-origin budget prediction is not near-zero. With oracle-perfect spatial localization, predicted growth/loss budgets moved substantially above LOCF:
+  - Test LOCF mean Dice: `0.644`.
+  - Best test predicted-direction budget oracle: `0.829` using treatment-only features with random forest/ridge log-volume budgets, gap `+0.185`.
+  - Best non-treatment-only test predicted-direction budget oracle was close: time-only random forest `0.821` (`+0.177`), no-interval random forest `0.820` (`+0.176`), history-only random forest `0.820` (`+0.176`), and full-origin random forest `0.817` (`+0.173`).
+  - Validation LOCF mean Dice: `0.616`.
+  - Best validation predicted-direction budget oracle: history-only ridge `0.800`, gap `+0.184`; history-only random forest `0.795`, gap `+0.178`.
+- Direction prediction also had nontrivial signal on the test split:
+  - Time-only and treatment-only feature sets reached direction accuracy `0.808` on test.
+  - Full-origin reached `0.769`; no-interval reached `0.731`.
+- Budget correlations were mixed but meaningful in several feature sets:
+  - Test growth-budget Spearman was strongest for previous-volume baseline (`0.795`) and moderate for history/no-interval/full-origin learned models (`~0.62-0.73` for many rows).
+  - Test loss-budget Spearman was high for no-interval/history/full-origin learned models (`~0.86-0.91` in the strongest rows), suggesting loss volume may be forecast-origin estimable even if direct loss editing remains risky.
+- Caution: the best test rows being treatment-only/time-only is a warning, not a triumph. These may encode cohort timing, treatment allocation, or split-specific patient structure rather than a general biological predictor. The validation split favored history-only features, which is more aligned with the intended forecasting mechanism.
+- Interpretation: this audit strengthens the method-design premise. A LOCF-anchored correction method is not blocked by budget calibration in principle, because simple origin-side models recover a substantial part of the oracle headroom under perfect localization. But the current evidence is still split-sensitive and uses oracle spatial placement, so it should be treated as a calibration feasibility result, not a completed forecasting method.
+- Next robustness step: repeat budget predictability under patient-split resampling and report whether history-only/no-interval features remain competitive. If the signal only survives through time/treatment features, the method should be reframed as operating-context calibration rather than tumor-state calibration.
