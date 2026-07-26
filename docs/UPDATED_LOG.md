@@ -5044,3 +5044,16 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
   - true-growth-volume oracle: Dice `0.869`, gap `+0.239`.
 - This means that a conservative tiny-growth policy cannot capture most of the available headroom on SAILOR. The bottleneck is not only locating growth; it is also estimating a sufficiently large but safe growth budget.
 - Research implication: the correction-model path remains promising because oracle headroom is large, but a successful method must address budget calibration. A model that adds only very small high-confidence patches may be safe but will leave most of the attainable improvement unused.
+
+## 2026-07-25 - Forecast-Origin Budget Predictability Tooling Added
+
+- Added `scripts/analyze_forecast_origin_budget_predictability.py` to test whether input-side features can estimate the growth/loss correction budget needed for LOCF-anchored forecasting.
+- This is intentionally not a new forecasting network. It separates the problem into:
+  - direction prediction: net growth versus net shrinkage;
+  - growth-budget prediction: how many outside-tumor voxels may need to be added;
+  - loss-budget prediction: how many current-tumor voxels may need to be removed;
+  - oracle spatial translation: what Dice would be possible if the predicted budget were localized perfectly.
+- The script compares simple budget predictors: zero budget, previous transition volume, train-median ratio, ridge regression on log-volume, and random forest regression on log-volume.
+- It evaluates the same forecast-origin feature sets used elsewhere: full-origin, no-interval, history-only, time-only, and treatment-only.
+- Purpose: test whether the budget-calibration bottleneck identified by the LOCF-correction oracle is forecast-origin predictable before training another correction model.
+- Interpretation rule: if predicted-budget oracle Dice remains close to LOCF, then budget calibration is currently weak and a learned correction model would likely need to learn budget internally. If it moves meaningfully toward the constrained oracle ceiling, then a persistence-preserving correction method has a more credible path.
