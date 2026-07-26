@@ -5268,3 +5268,45 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
   - the policy still edits some shrinkage cases;
   - gate thresholds above `0.7` opened no edits, suggesting direction probabilities are not well calibrated.
 - Next robustness step: repeat the same conservative gate/scale ablation with the seed-123 growth-only checkpoint. If the selected conservative pattern survives, this becomes a credible signal. If it does not, the result remains exploratory.
+
+## 2026-07-26 - SAILOR Conservative Growth-Policy Seed-123 Robustness Check
+
+- Repeated the conservative gate/scale ablation using the seed-123 growth-only ResUNet checkpoint:
+  - checkpoint: `sailor_growth_only_resunet_stride2_s123_v1/model_best_growth_only_resunet_image_mask.pt`;
+  - same SAILOR length-3, horizon-1 patient split `v2`;
+  - same forecast-origin budget model: `history_only` + `ridge_log`;
+  - same validation-only sweep over gate thresholds and budget scales.
+- The validation-selected policy was again:
+  - gate threshold: `0.5`;
+  - budget scale: `0.1`.
+- Validation performance:
+  - LOCF Dice: `0.618`;
+  - conservative policy Dice: `0.622`;
+  - mean gap versus LOCF: `+0.004`;
+  - median gap versus LOCF: `+0.001`;
+  - win rate versus LOCF: `0.536`;
+  - net-growth gap: `+0.009`;
+  - net-shrinkage gap: `-0.002`.
+- Test performance:
+  - LOCF Dice: `0.641`;
+  - conservative policy Dice: `0.641`;
+  - mean gap versus LOCF: `-0.0002`;
+  - median gap versus LOCF: `0.000`;
+  - win rate versus LOCF: `0.462`;
+  - net-growth gap: `+0.002`;
+  - net-shrinkage gap: `-0.004`.
+- What survived across seeds:
+  - the validation-selected operating point stayed identical (`gate=0.5`, `budget_scale=0.1`);
+  - validation gains remained small positive;
+  - net-growth cases benefited more than net-shrinkage cases;
+  - shrinkage cases remained the main source of harm.
+- What did not survive:
+  - the seed-42 small positive test gain did not repeat under seed 123;
+  - seed-123 test behavior was essentially tied with LOCF overall and slightly below it by mean Dice.
+- Interpretation:
+  - this strengthens the diagnosis that conservative, persistence-preserving edits are safer than unrestricted learned-field edits;
+  - it does not establish a robust method improvement over LOCF;
+  - the current method signal should remain exploratory and should not be used as the main contribution without additional robustness.
+- Research implication:
+  - the next credible step is not another hand-tuned policy variant;
+  - we need an aggregate seed-level summary, patient-level uncertainty, and a clearer decision on whether the method contribution should be pursued now or whether the main contribution should remain transition taxonomy, LOCF operating range, and bottleneck analysis.
