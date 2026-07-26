@@ -572,6 +572,7 @@ No central claim should rely on a single random realization. Each claim must be 
 | High-change-rate predictability reflects intrinsic tumor behavior | Strong time/treatment/no-interval signals | Rejected in this form | Reframe as interval/treatment-linked operating context | Definitional coupling with rate label and treatment structure could mislead |
 | Predicted transition risk stratifies persistence difficulty | SAILOR out-of-fold risk-stratified model-behavior analysis | Strong descriptive/methodological claim | Patient-level uncertainty and comparison with additional model outputs | Could be reduced to "hard cases are hard" unless framed as pre-target risk stratification |
 | Existing ResUNet selectively solves high-risk transitions | Risk-stratified model-vs-LOCF gaps | Rejected for current baseline | Risk-conditioned method prototype | Generic full-mask model does not exploit the risk signal enough |
+| Scalar risk-channel conditioning improves forecasting | SAILOR risk-conditioned ResUNet, same-manifest paired comparison | Rejected for current prototype | None unless redesigned; do not rescue with isolated seed tuning | Extra scalar context did not beat ordinary ResUNet and hurt shrinkage/loss cases |
 | Growth-only residual forecasting is a mature method contribution | SAILOR seeds 42/123 show small positive trends | Weak-to-moderate, not central yet | Same-resolution baselines, more seeds/splits, patient bootstrap, failure analysis | Small gains could be over-engineered or non-robust |
 | Loss/shrinkage is symmetric with growth | Residual-change experiments | Rejected for now | Treatment/registration/loss-specific analysis | Symmetric residual modeling may hurt credibility |
 | Regime-aware priors improve forecasting | Decomposition evidence and early method probes | Plausible but unproven | A clean prior-driven method with robust gains | Premature method claims could weaken the whole project |
@@ -589,6 +590,8 @@ No central claim should rely on a single random realization. Each claim must be 
 9. Decide which claims are strong enough to be central and which must remain exploratory.
 10. Repeat forecast-origin transition predictability over multiple patient splits/folds, especially for `mixed_growth_loss`, `distant_growth_present`, and `high_transition_burden`.
 11. Convert risk stratification into a concrete method design only if the method explicitly uses the risk signal; avoid presenting generic ResUNet gains as risk-aware forecasting.
+12. Treat scalar risk-channel conditioning as a negative baseline. Any next method must change the forecasting mechanism, not merely append risk scores to a full-mask predictor.
+13. Design the next prototype around persistence-preserving updates: start from LOCF, predict a constrained correction field, and separately handle growth versus loss/shrinkage rather than assuming they are symmetric.
 
 ## 14. Quality Bar
 

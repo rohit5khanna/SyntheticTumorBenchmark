@@ -4990,3 +4990,22 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
 - Added `scripts/run_risk_conditioned_manifest_baseline.py` to train a standard CNN/ResUNet forecaster with those risk scores appended as scalar 3D input channels.
 - This is the first deliberately risk-aware forecasting prototype. It keeps the same base model family as the manifest ResUNet baseline, but gives the network explicit pre-target risk context.
 - Interpretation rule: this is only credible if compared against the same manifest split, same model family, same image/mask input mode, similar capacity, same seed, and risk-stratified evaluation. If it does not improve high-risk strata, the result should be treated as evidence that simple risk-channel conditioning is insufficient, not as failure of the whole risk framework.
+
+## 2026-07-25 - Risk-Conditioned Scalar-Channel Prototype Result
+
+- Ran the risk-conditioned ResUNet-image+mask prototype on the SAILOR length-3, horizon-1 manifest using leakage-controlled forecast-origin risk scores as additional scalar 3D channels.
+- The successful run used the full train/validation/test manifest rows available for the current split, seed `42`, base channels `6`, batch size `1`, and `spatial_stride=2` to keep the 3D memory footprint manageable.
+- The model trained successfully, reaching validation Dice `0.616` and test Dice `0.624`.
+- Paired comparison against the existing same-manifest baselines showed no improvement:
+  - Test: LOCF `0.644`, ordinary ResUNet-image+mask `0.647`, risk-conditioned ResUNet `0.624`.
+  - Validation: LOCF `0.616`, ordinary ResUNet-image+mask `0.634`, risk-conditioned ResUNet `0.616`.
+- The risk-conditioned model lost to ordinary ResUNet on both validation and test. Mean Dice gaps versus ordinary ResUNet were `-0.0179` on validation and `-0.0226` on test. Win rates versus ordinary ResUNet were also weak: `0.286` on validation and `0.115` on test.
+- By transition direction, the scalar-channel prototype helped relative to LOCF only in net-growth subsets:
+  - Validation net growth: risk-conditioned gap versus LOCF `+0.021`.
+  - Test net growth: risk-conditioned gap versus LOCF `+0.012`.
+  However, it remained below ordinary ResUNet in those same subsets.
+- The model clearly hurt shrinkage/loss transitions:
+  - Validation net shrinkage: gap versus LOCF `-0.025`.
+  - Test net shrinkage: gap versus LOCF `-0.064`.
+- Interpretation: simple scalar risk-channel conditioning is not a sufficient risk-aware forecasting method. The negative result is useful because it separates two claims: forecast-origin risk is useful for stratifying transition difficulty, but a generic full-mask ResUNet does not automatically exploit that risk signal just because it is appended as input.
+- Research implication: the next method should not be another full-mask redraw model with extra scalar context. A stronger direction is a persistence-preserving correction model that explicitly limits when and where the forecast can depart from LOCF, and that treats growth and loss/shrinkage asymmetrically.
