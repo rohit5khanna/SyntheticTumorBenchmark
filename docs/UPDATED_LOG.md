@@ -5442,3 +5442,35 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
 - Next action:
   - rerun the research-backbone summary once with the updated script;
   - then curate the final main evidence package around the central claims.
+
+## 2026-07-26 - Main Evidence Package Builder Added
+
+- Added `scripts/build_main_evidence_package.py`.
+- Purpose:
+  - turn the research backbone into manuscript-facing artifacts;
+  - curate the current outputs without recomputing analyses or training models;
+  - keep central evidence separate from diagnostic method probes.
+- The script reads existing folders when available:
+  - research backbone summary;
+  - transition main artifacts;
+  - transition evidence package;
+  - LOCF operating range;
+  - forecast-origin patient-split stability;
+  - learned growth-field failure diagnosis;
+  - conservative-policy seed robustness audit.
+- It writes:
+  - `main_evidence_manifest.csv` / `.md`;
+  - `main_evidence_package_report.md`;
+  - `tables/main_claim_map.csv`;
+  - `tables/main_transition_summary_table.csv`;
+  - `tables/main_locf_operating_table.csv`;
+  - `tables/main_forecast_origin_predictability_table.csv`;
+  - `tables/main_method_diagnostic_table.csv`;
+  - copied recommended figures when source figures exist.
+- Recommended main-text order from the generated report:
+  1. transition composition and SRD-SAILOR roles;
+  2. LOCF operating range;
+  3. forecast-origin predictability as supporting risk-stratification evidence;
+  4. method-probe bottlenecks as diagnostic evidence, not as a method win.
+- Local compile and smoke test passed.
+- This is now the next Colab step before writing or running any new experiment.
