@@ -5009,3 +5009,15 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
   - Test net shrinkage: gap versus LOCF `-0.064`.
 - Interpretation: simple scalar risk-channel conditioning is not a sufficient risk-aware forecasting method. The negative result is useful because it separates two claims: forecast-origin risk is useful for stratifying transition difficulty, but a generic full-mask ResUNet does not automatically exploit that risk signal just because it is appended as input.
 - Research implication: the next method should not be another full-mask redraw model with extra scalar context. A stronger direction is a persistence-preserving correction model that explicitly limits when and where the forecast can depart from LOCF, and that treats growth and loss/shrinkage asymmetrically.
+
+## 2026-07-25 - LOCF-Correction Oracle Tooling Added
+
+- Added `scripts/analyze_locf_correction_oracle.py` as the first step after rejecting scalar risk-channel conditioning.
+- Purpose: estimate non-trivial ceilings for persistence-anchored forecasting before training another model.
+- The analysis starts from LOCF and evaluates constrained oracle policies:
+  - growth-only oracle: add the true new-growth region but do not remove apparent loss;
+  - loss-only oracle: remove the true apparent-loss region but do not add new growth;
+  - directional oracle: use growth-only when the target has net growth, loss-only when the target has net shrinkage, and LOCF when stable;
+  - budgeted perfect-growth oracle: add only a small budget of true growth voxels, expressed as a fraction of the input tumor volume.
+- This deliberately avoids the trivial full growth+loss oracle as the main result because that would always reproduce the target mask and give Dice `1.0`.
+- Interpretation rule: if the constrained oracle has little headroom over LOCF, a LOCF-correction method is not worth pursuing. If the headroom is concentrated in growth-only corrections but not loss/shrinkage, the next prototype should focus on conservative growth addition rather than symmetric mask editing.
