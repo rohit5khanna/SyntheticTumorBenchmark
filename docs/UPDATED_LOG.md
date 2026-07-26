@@ -5130,3 +5130,46 @@ Run a cleaner SAILOR audit with input length `3`, horizon `1`, and a TaDiff-comp
   - true direction/true budget + distance or boundary loss, as a distance-prior ceiling.
 - Purpose: test whether budget calibration translates into actual mask forecasting when spatial localization is performed by a real, simple spatial prior instead of by an oracle.
 - Interpretation rule: if predicted-budget distance policies fail while true-budget distance policies also fail, the bottleneck is distance-based spatial localization. If true-budget distance helps but predicted-budget distance fails, budget prediction is still too inaccurate for actual masks. If predicted-budget distance helps, we have a clean lightweight LOCF-correction method candidate.
+
+## 2026-07-26 - SAILOR Budgeted Distance Forecast Result
+
+- Ran the budgeted distance-forecast evaluator on the SAILOR length-3, horizon-1 patient split `v2`, using `history_only` forecast-origin features and ridge log-volume budget prediction.
+- This was the first non-oracle conversion test after the budget-predictability audit: predicted budgets were converted into actual masks using distance-to-current-mask as the spatial score field.
+- Overall result: the naive distance spatial prior did not convert budget predictability into reliable Dice gains.
+  - Test LOCF Dice: `0.644`.
+  - Test predicted-direction growth-only distance Dice: `0.616`, gap `-0.028`.
+  - Test predicted-growth-budget distance Dice: `0.608`, gap `-0.037`.
+  - Validation LOCF Dice: `0.616`.
+  - Validation predicted-direction growth-only distance Dice: `0.605`, gap `-0.011`.
+  - Validation predicted-growth-budget distance Dice: `0.601`, gap `-0.015`.
+- Even with the true growth budget, distance localization gave only limited gains:
+  - Test true-growth-budget distance Dice: `0.660`, gap `+0.016`.
+  - Validation true-growth-budget distance Dice: `0.641`, gap `+0.025`.
+- Net-growth cases showed mild directional promise but not enough:
+  - Test net-growth true-growth-budget distance gap: `+0.042`.
+  - Validation net-growth true-growth-budget distance gap: `+0.057`.
+  - Predicted-budget distance gains were near zero on test net-growth and about `+0.021` on validation net-growth.
+- Shrinkage/loss cases were clearly fragile under this simple edit rule:
+  - Test net-shrinkage true-direction budget distance gap: `-0.052`.
+  - Validation net-shrinkage true-direction budget distance gap: `-0.055`.
+- Interpretation: this rejects a simplistic correction mechanism of the form "predict budget, then expand/remove near the current boundary." The bottleneck is now more sharply localized: forecast-origin budget calibration is meaningful, but distance-based spatial localization is too weak, especially when loss/shrinkage is involved.
+- Research implication: the next method test should use a learned spatial growth field rather than a hand-coded distance field. We should still keep LOCF as the anchor and budget as the calibration signal, but the spatial score must come from tumor/imaging context.
+
+## 2026-07-26 - Budgeted Learned Growth-Field Tooling Added
+
+- Added `scripts/evaluate_budgeted_learned_growth_forecast.py`.
+- The script evaluates the next non-oracle conversion test:
+  - train forecast-origin budget/direction predictors on the training split;
+  - load an already trained growth-only ResUNet checkpoint;
+  - use the model's voxelwise growth probability as the spatial ranking field;
+  - add the predicted or true growth budget outside the current mask;
+  - compare the resulting masks against LOCF.
+- This script intentionally does not train another network. It isolates whether the learned growth-probability field is a better spatial translator than distance-to-mask under the same budget-calibration idea.
+- Evaluated policies include:
+  - `locf`;
+  - predicted growth budget + learned growth field;
+  - predicted direction with growth-only learned-field correction;
+  - true growth budget + learned growth field;
+  - true direction/true growth budget + learned growth field.
+- Important resolution note: this evaluator should be run at the same `spatial_stride` as the growth-only checkpoint. For the current SAILOR growth-only checkpoint, that is `spatial_stride=2`; LOCF is recomputed at the same downsampled resolution for a fair internal comparison.
+- Interpretation rule: if true-budget learned-field policies help but predicted-budget learned-field policies fail, budget calibration is still too noisy for real masks. If both fail, the learned growth field is weak. If predicted-budget learned-field policies improve mainly in net-growth cases but hurt shrinkage cases, the next model should become explicitly direction-aware or loss-aware rather than symmetric.
