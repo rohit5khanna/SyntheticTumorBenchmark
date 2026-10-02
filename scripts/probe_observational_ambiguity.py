@@ -88,7 +88,7 @@ def render_example(path: Path, anchor: np.ndarray, candidate: np.ndarray, thresh
     import matplotlib.pyplot as plt
 
     masks = [(anchor >= threshold), (candidate >= threshold)]
-    z = int(np.argmax((masks[0] | masks[1]).sum(axis=(0, 1))))
+    z = int(np.argmax((masks[0][3] | masks[1][3]).sum(axis=(0, 1))))
     fig, axes = plt.subplots(2, 4, figsize=(12, 6), constrained_layout=True)
     for row, (states, name) in enumerate([(anchor, "Anchor"), (candidate, "Matched candidate")]):
         for col in range(4):
@@ -99,6 +99,15 @@ def render_example(path: Path, anchor: np.ndarray, candidate: np.ndarray, thresh
     fig.suptitle(f"Same initial state; near-matched observed sessions 0-2; future at session 3 (z={z})")
     fig.savefig(path, dpi=160)
     plt.close(fig)
+
+
+def save_results(path: Path, rows: list[dict], summaries: list[dict], protocol: dict) -> None:
+    with (path / "candidates.csv").open("w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+    with (path / "summary.json").open("w") as f:
+        json.dump({"protocol": protocol, "results": summaries}, f, indent=2)
 
 
 def main() -> None:
@@ -130,8 +139,21 @@ def main() -> None:
     rng = np.random.default_rng(args.seed)
     rows = []
     summaries = []
-    figure_written = False
+    example_to_plot = None
     thresholds = (0.90, 0.95, 0.98)
+    protocol = {
+        "config": args.config,
+        "seed": args.seed,
+        "tiers": tiers,
+        "shape": shape,
+        "days": days.tolist(),
+        "steps_per_day": args.steps_per_day,
+        "treatment": "none; held fixed",
+        "initial_concentration": "identical within each anchor set",
+        "image_modalities": ["t1ce", "flair"],
+        "image_rule": "candidate RMSE no larger than 95th percentile of same-state repeat scans",
+        "mask_cutoffs": thresholds,
+    }
 
     for tier in tiers:
         tier_cfg = cfg["tiers"][tier]
@@ -205,36 +227,18 @@ def main() -> None:
                 summaries.append(summary)
                 print(json.dumps(summary), flush=True)
 
-                if cutoff == 0.95 and accepted and not figure_written:
+                if cutoff == 0.95 and accepted and example_to_plot is None:
                     example = min(accepted, key=lambda item: item[2]["future_dice_to_anchor"])
-                    render_example(out / "matched_histories_example.png", anchor, example[0], mask_threshold)
-                    figure_written = True
+                    example_to_plot = (anchor.copy(), example[0].copy(), mask_threshold)
 
-    with (out / "candidates.csv").open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0]))
-        writer.writeheader()
-        writer.writerows(rows)
-    with (out / "summary.json").open("w") as f:
-        json.dump(
-            {
-                "protocol": {
-                    "config": args.config,
-                    "seed": args.seed,
-                    "tiers": tiers,
-                    "shape": shape,
-                    "days": days.tolist(),
-                    "steps_per_day": args.steps_per_day,
-                    "treatment": "none; held fixed",
-                    "initial_concentration": "identical within each anchor set",
-                    "image_modalities": ["t1ce", "flair"],
-                    "image_rule": "candidate RMSE no larger than 95th percentile of same-state repeat scans",
-                    "mask_cutoffs": thresholds,
-                },
-                "results": summaries,
-            },
-            f,
-            indent=2,
-        )
+            # Persist each completed anchor before attempting optional plotting.
+            save_results(out, rows, summaries, protocol)
+
+    if example_to_plot is not None:
+        try:
+            render_example(out / "matched_histories_example.png", *example_to_plot)
+        except Exception as exc:
+            print(f"Optional figure could not be rendered: {exc}")
     print(f"Saved {len(rows)} candidates and {len(summaries)} summaries to {out}")
 
 
